@@ -12,8 +12,6 @@
 #include <stdatomic.h>
 #include <sys/cdefs.h>
 
-// unknown accel: reg 0x20 bits: 4/5/6/7
-
 void write_reg(uint8_t reg, uint8_t value)
 {
 	uint8_t tx_arr[2];
@@ -31,6 +29,11 @@ uint8_t read_reg(uint8_t reg)
 
 void imu_init(void)
 {
+	uint8_t reg = 0x10;
+	uint8_t b = 0x99;
+	int sts = i2c_master_write_read_device(0, 0x3D, &reg, 1, &b, 1, 2);
+	ESP_LOGE("", "sts: %d %d", sts, b);
+#if 0
 	write_reg(MPU6050_PWR_MGMT_1, 0); // wakeup the chip
 	// uint8_t chipid = read_reg(MPU6050_WHO_AM_I); // read chip id
 
@@ -42,6 +45,7 @@ void imu_init(void)
 	write_reg(MPU6050_PWR_MGMT_2, tmp);
 	write_reg(MPU6050_ACCEL_CONFIG, 0x00 << 3 /* acc +-2g */);
 	write_reg(MPU6050_GYRO_CONFIG, 0x03 << 3 /* gyro 2000dps*/);
+#endif
 }
 
 void imu_get_acc(int16_t acc[3])

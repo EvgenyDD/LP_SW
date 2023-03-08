@@ -1,4 +1,4 @@
-// #include "driver/spi_master.h"
+#include "lp.h"
 #include "driver/gpio.h"
 #include "driver/timer.h"
 #include "esp_attr.h"
@@ -13,111 +13,24 @@
 #include <stdio.h>
 #include <string.h>
 
-spi_nodma_device_handle_t disp_spi = NULL;
-
 #define PIN_LDAC 5
 #define PIN_DATA 4
 #define PIN_CLK 12
 #define PIN_CS0 13
 #define PIN_CS1 16
 
-uint64_t timer_diff = 0;
-
-volatile uint32_t gs_pnt_cnt[1] = {6};
-volatile uint32_t gs_pnt_cur[1] = {0};
-
-static intr_handle_t s_timer_handle;
-
-#define DCMPS(x) ((x & 0xFF) << 8) | (x >> 8)
-// volatile uint16_t daq_presets[] = {
-// 	(1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)) | DCMPS(4095 / 5),
-// 	(0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)) | DCMPS(4095 / 5 * 2),
-// 	(0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)) | DCMPS(4095 / 5 * 3),
-// 	(1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)) | DCMPS(4095 / 5 * 4),
-// 	(0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)) | DCMPS(4095 / 5 * 5),
-// };
-volatile uint16_t daq_presets[6 * 6] = {0};
-
-volatile uint16_t presets[] = {0x1234, 0x5678,
-							   0x9ABC, 0xDEF0,
-							   0xA5A5};
-
-#define DLY()                                  \
-	for(volatile uint32_t x = 13; x != 0; x--) \
-		asm("nop");
+#define SPI_BUS HSPI_HOST
+#define DAC_SPI SPI2
 
 #define PIN_H(X) GPIO.out_w1ts = (1 << X)
 #define PIN_L(X) GPIO.out_w1tc = (1 << X)
 
-#define SPI_BUS HSPI_HOST
-#define DAC_SPI SPI2
-// #define SPI_BUS VSPI_HOST
-// #define DAC_SPI SPI3
+spi_nodma_device_handle_t lsr_spi = NULL;
 
-static IRAM_ATTR void
-timer_isr(void *arg)
-{
-	TIMERG0.int_clr_timers.t0 = 1;
-	TIMERG0.hw_timer[0].config.alarm_en = 1;
+volatile uint32_t gs_pnt_cnt[1] = {6};
+volatile uint32_t gs_pnt_cur[1] = {0};
 
-	// timer_set_counter_value(TIMER_GROUP_0, 1, 0);
-
-	PIN_H(PIN_CS0);
-	PIN_H(PIN_CS1);
-	PIN_L(PIN_CS0);
-
-	DAC_SPI.data_buf[0] = presets[0];
-	DAC_SPI.cmd.usr = 1; // Start transfer
-	// while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
-	// 	;
-	DLY()
-
-	PIN_H(PIN_CS0);
-	PIN_H(PIN_CS1);
-	PIN_L(PIN_CS0);
-
-	DAC_SPI.data_buf[0] = presets[1];
-	DAC_SPI.cmd.usr = 1; // Start transfer
-	// while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
-	// 	;
-	DLY()
-
-	PIN_H(PIN_CS0);
-	PIN_L(PIN_CS1);
-
-	DAC_SPI.data_buf[0] = presets[2];
-	DAC_SPI.cmd.usr = 1; // Start transfer
-	// while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
-	// 	;
-	DLY()
-
-	PIN_H(PIN_CS1);
-	PIN_H(PIN_CS0);
-	PIN_L(PIN_CS1);
-
-	DAC_SPI.data_buf[0] = presets[3];
-	DAC_SPI.cmd.usr = 1; // Start transfer
-	// while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
-	// 	;
-	DLY()
-
-	PIN_H(PIN_CS0);
-	PIN_H(PIN_CS1);
-
-	DAC_SPI.data_buf[0] = presets[4];
-	DAC_SPI.cmd.usr = 1; // Start transfer
-	// while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
-	// 	;
-	DLY()
-
-	PIN_L(PIN_CS0);
-	PIN_L(PIN_CS1);
-
-	PIN_L(PIN_LDAC);
-	PIN_H(PIN_LDAC);
-
-	// timer_diff = timer_group_get_counter_value_in_isr(TIMER_GROUP_0, 1);
-}
+volatile uint16_t daq_presets[6 * 6] = {0};
 
 void lp_init(void)
 {
@@ -147,27 +60,18 @@ void lp_init(void)
 
 	spi_nodma_device_interface_config_t devcfg = {
 		.clock_speed_hz = 16000000,
-		.mode = 0,							// SPI mode 0
-		.spics_io_num = -1,					// we will use external CS pin
-		.spics_ext_io_num = -1,				// external CS pin
-		.flags = 0 | SPI_DEVICE_HALFDUPLEX, // Set half duplex mode (Full duplex mode can also be set by commenting this line
-											//  but we don't need full duplex in  this example
-											//  also, SOME OF TFT FUNCTIONS ONLY WORKS IN HALF DUPLEX MODE
-		.queue_size = 2,					// in some tft functions we are using DMA mode, so we need queues!
-											// We can use pre_cb callback to activate DC, but we are handling DC in low-level functions, so it is not necessary
-											//.pre_cb=ili_spi_pre_transfer_callback,  //Specify pre-transfer callback to handle D/C line
+		.mode = 0,
+		.spics_io_num = -1,
+		.spics_ext_io_num = -1,
+		.flags = 0 | SPI_DEVICE_HALFDUPLEX,
+		.queue_size = 2,
 	};
 
 	esp_err_t ret = spi_nodma_bus_add_device(SPI_BUS, &buscfg, &devcfg, &spi);
 	assert(ret == ESP_OK);
-	disp_spi = spi;
+	lsr_spi = spi;
 
-	// ret = spi_nodma_device_select(spi, 1);
-	// assert(ret == ESP_OK);
-	// ret = spi_nodma_device_deselect(spi);
-	// assert(ret == ESP_OK);
-
-	ret = spi_nodma_device_select(disp_spi, 1);
+	ret = spi_nodma_device_select(lsr_spi, 1);
 	assert(ret == ESP_OK);
 
 	timer_config_t config = {
@@ -182,7 +86,6 @@ void lp_init(void)
 	timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
 	timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 22);
 	timer_enable_intr(TIMER_GROUP_0, TIMER_0);
-	// ESP_ERROR_CHECK(timer_isr_register(TIMER_GROUP_0, TIMER_0, &timer_isr, NULL, ESP_INTR_FLAG_IRAM, &s_timer_handle));
 	ESP_ERROR_CHECK(timer_isr_register(TIMER_GROUP_0, TIMER_0, NULL, NULL, ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL5, NULL));
 
 	timer_config_t config_rt = {
@@ -200,20 +103,18 @@ void lp_init(void)
 	timer_enable_intr(TIMER_GROUP_0, 1);
 	timer_start(TIMER_GROUP_0, 1);
 
+	DAC_SPI.user.usr_mosi_highpart = 0;
+	DAC_SPI.mosi_dlen.usr_mosi_dbitlen = 16 - 1;
+	DAC_SPI.user.usr_mosi = 1;
+	if(lsr_spi->cfg.flags & SPI_DEVICE_HALFDUPLEX)
 	{
-		DAC_SPI.user.usr_mosi_highpart = 0;
-		DAC_SPI.mosi_dlen.usr_mosi_dbitlen = 16 - 1;
-		DAC_SPI.user.usr_mosi = 1;
-		if(disp_spi->cfg.flags & SPI_DEVICE_HALFDUPLEX)
-		{
-			DAC_SPI.miso_dlen.usr_miso_dbitlen = 0;
-			DAC_SPI.user.usr_miso = 0;
-		}
-		else
-		{
-			DAC_SPI.miso_dlen.usr_miso_dbitlen = 16 - 1;
-			DAC_SPI.user.usr_miso = 1;
-		}
+		DAC_SPI.miso_dlen.usr_miso_dbitlen = 0;
+		DAC_SPI.user.usr_miso = 0;
+	}
+	else
+	{
+		DAC_SPI.miso_dlen.usr_miso_dbitlen = 16 - 1;
+		DAC_SPI.user.usr_miso = 1;
 	}
 
 	memset((void *)daq_presets, 0, sizeof(daq_presets));
@@ -229,7 +130,7 @@ void lp_init(void)
 	daq_presets[6 * 4 + 4] = 4095;
 	daq_presets[6 * 5 + 5] = 4095;
 
-	// Disable unused channel
+	// disable unused DAC channel
 	PIN_H(PIN_CS0);
 	PIN_H(PIN_CS1);
 	DAC_SPI.data_buf[0] = (1 << (15 - 8)) | (0 << (12 - 8));
@@ -240,3 +141,72 @@ void lp_init(void)
 
 	timer_start(TIMER_GROUP_0, TIMER_0);
 }
+
+// QLPE - quick laser projector engine
+
+bool lsr_q_is_circular = false;
+void *frame_first = NULL;
+void *frame_current = NULL; // used by QLPE
+void *frame_next = NULL;	// used by QLPE
+void *frame_pending = NULL;
+uint32_t frame_count = 0; // including preparation frames
+
+enum
+{
+	LP_NO_MEM = 1,
+	LP_FRAME_NOT_CREATED,
+};
+
+void lsr_q_clear(void)
+{
+	frame_current = NULL; // this will stop QLPE
+
+	// clear the queue
+	if(!frame_first)
+	{
+		while(1)
+		{
+			void *next;
+			memcpy(&next, &frame_first, 4);
+			free(frame_first);
+			if(!next) break;
+		}
+		if(frame_pending) free(frame_pending); // also delete preparation frames
+	}
+
+	frame_first = NULL;
+	frame_next = NULL;
+	frame_pending = NULL;
+	lsr_q_is_circular = false;
+	frame_count = 0;
+}
+
+int lsr_q_reserve_frame(uint32_t point_count)
+{
+	// frame_pending = malloc(sizeof(lframe_header_t) + point_count * sizeof(ilda_point_t));
+	// if(!frame_pending) return LP_NO_MEM;
+
+	// frame_count++;
+	return 0;
+}
+
+int lsr_q_modify_point(uint32_t point)
+{
+	if(frame_pending == NULL) return LP_FRAME_NOT_CREATED;
+
+	return 0;
+}
+
+int lsr_q_add_frame(void) // finalizes the preparation frame
+{
+	if(frame_pending == NULL) return LP_FRAME_NOT_CREATED;
+
+	frame_next = frame_pending;
+	frame_pending = NULL;
+
+	if(!frame_current) frame_current = frame_pending; // this will start the scan
+
+	return 0;
+}
+
+void lsr_q_set_circular(bool state) { lsr_q_is_circular = state; }

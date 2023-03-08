@@ -4,21 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void ilda_file_dump_header(const ilda_header_t *header)
-{
-	char tmp[3][100] = {0};
-	strncpy(tmp[0], header->ilda_id_str, 4);
-	strncpy(tmp[1], header->name_frame, 8);
-	strncpy(tmp[2], header->name_company, 8);
-	printf("Header: %s | Format: %d | Name: %s | Company: %s | Rec: %d | Frames: %d\n",
-		   tmp[0],
-		   header->format,
-		   tmp[1],
-		   tmp[2],
-		   header->point_count,
-		   header->frame_count);
-}
-
 #define ILDA_FMT_3D_INDEXED 0
 #define ILDA_FMT_2D_INDEXED 1
 #define ILDA_FMT_PALETTE 2
@@ -29,7 +14,7 @@ static const char format_chunk_sz[] = {
 	3 * sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t),	  // 3D INDEXED
 	2 * sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t),	  // 2D INDEXED
 	3 * sizeof(uint8_t),										  // PALETTE
-	3,															  // -
+	3,															  // WTF is that format? no specs....
 	3 * sizeof(uint16_t) + sizeof(uint8_t) + 3 * sizeof(uint8_t), // 3D TRUE
 	2 * sizeof(uint16_t) + sizeof(uint8_t) + 3 * sizeof(uint8_t), // 2D TRUE
 };
@@ -382,7 +367,7 @@ static int lookup_color(uint8_t *c, uint8_t idx, ilda_t *ilda, bool use_64_color
 	return 0;
 }
 
-int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_color_table)
+int ilda_file_read2(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_color_table)
 {
 	if(strcmp("ILDA", data) != 0)
 	{
@@ -402,9 +387,6 @@ int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_c
 	header.point_count = ntohs(header.point_count);
 	header.frame_count = ntohs(header.frame_count);
 	uint32_t frame_count = header.frame_count;
-	ilda->last_format = header.format;
-
-	ilda_file_dump_header(&header);
 
 	// allocate space for the frames
 	ilda->frame_count = header.frame_count;
@@ -508,12 +490,6 @@ int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_c
 			// printf("WTFFFFFFFFFFFFFFFFFFFFFFFff frame_count != header.frame_count, %d %d\n", frame_count, header.frame_count);
 			frame_count = header.frame_count;
 		}
-
-		if(ilda->last_format != header.format)
-		{
-			printf("Format switch: %d => %d (@ frame %d)\n", ilda->last_format, header.format, i);
-			ilda->last_format = header.format;
-		}
 	}
 
 	if(fpos != fsize)
@@ -522,6 +498,161 @@ int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_c
 	}
 
 	return 0;
+}
+
+int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_color_table)
+{
+	memset(ilda, 0, sizeof(ilda_t));
+	int fpos = 0;
+	ilda_header_t header;
+
+	while(1)
+	{
+		// read in the header
+		memcpy((uint8_t *)&header, data + fpos, sizeof(ilda_header_t));
+		fpos += sizeof(ilda_header_t);
+
+		if(strcmp("ILDA", header.ilda_id_str) != 0)
+		{
+			printf("Section header did not contain \"ILDA\" @offset x%X\n", fpos);
+			return -1;
+		}
+
+		if(header.format >= sizeof(format_chunk_sz) / sizeof(format_chunk_sz[0]))
+		{
+			printf("Unknown format %d, file pos: x%X\n", header.format, fpos);
+			return -2;
+		}
+
+		header.frame_count = ntohs(header.frame_count);
+
+		header.point_count = ntohs(header.point_count);
+		if(header.point_count == 0) return 0;
+
+		if(header.format != 2 && header.format != 3)
+		{
+			ilda->frame_count++;
+			ilda->point_count += header.point_count;
+			if(ilda->max_point_per_frame < header.point_count) ilda->max_point_per_frame = header.point_count;
+		}
+
+		fpos += format_chunk_sz[header.format] * header.point_count;
+
+		if(fpos == fsize) return 0;
+		if(fpos > fsize)
+		{
+			printf("Length mismatch: %d and file %d =====> %d\n", fpos, fsize, fpos - fsize);
+			return -10;
+		}
+	}
+	// // allocate space for the frames
+	// ilda->frame_count = header.frame_count;
+	// ilda->frames = (ilda_frame_t *)calloc(ilda->frame_count, sizeof(ilda_frame_t));
+
+	// // read in each frame/pallete
+	// for(uint32_t i = 0; i < ilda->frame_count; i++)
+	// {
+	// 	if(header.format >= sizeof(format_chunk_sz) / sizeof(format_chunk_sz[0]))
+	// 	{
+	// 		printf("Unknown format %d at frame %d, file pos: x%X\n", header.format, i, fpos);
+	// 		return -2;
+	// 	}
+	// 	const int chunk = format_chunk_sz[header.format];
+	// 	if(format_chunk_sz[header.format] == 0)
+	// 	{
+	// 		printf("Unknown format %d at frame %d, file pos: x%X\n", header.format, i, fpos);
+	// 		// return -3;
+	// 	}
+
+	// 	if(header.format == 3) printf("3 fmt count: %d\n", header.point_count);
+
+	// 	if(header.format == ILDA_FMT_PALETTE)
+	// 	{
+	// 		ilda->pallete_present = true;
+	// 		ilda->pallete_size = header.point_count;
+	// 		printf("\t\tPallete found %d\n", ilda->pallete_size);
+	// 		if(ilda->pallete) free(ilda->pallete);
+	// 		ilda->pallete = (uint8_t *)malloc(ilda->pallete_size * 3);
+	// 		memcpy(ilda->pallete, data + fpos, ilda->pallete_size * 3);
+	// 		fpos += ilda->pallete_size * 3;
+	// 	}
+	// 	else
+	// 	{
+	// 		ilda->frames[i].point_count = header.point_count;
+	// 		ilda->frames[i].points = (ilda_point_t *)calloc(header.point_count, sizeof(ilda_point_t));
+	// 		for(uint32_t j = 0; j < header.point_count; j++)
+	// 		{
+	// 			uint8_t ch[chunk];
+	// 			memcpy(ch, data + fpos, chunk);
+	// 			fpos += chunk;
+
+	// 			switch(header.format)
+	// 			{
+	// 			case ILDA_FMT_3D_INDEXED:
+	// 				ilda->frames[i].points[j].x = (ch[0] << 8) | ch[1];
+	// 				ilda->frames[i].points[j].y = (ch[2] << 8) | ch[3];
+	// 				ilda->frames[i].points[j].z = (ch[4] << 8) | ch[5];
+	// 				ilda->frames[i].points[j].blanked = ch[6] & (1 << 6);
+	// 				ilda->frames[i].points[j].last_point = ch[6] & (1 << 7);
+	// 				if(lookup_color(ilda->frames[i].points[j].color, ch[7], ilda, use_64_color_table) != 0) return -4;
+	// 				break;
+
+	// 			case ILDA_FMT_2D_INDEXED:
+	// 				ilda->frames[i].points[j].x = (ch[0] << 8) | ch[1];
+	// 				ilda->frames[i].points[j].y = (ch[2] << 8) | ch[3];
+	// 				ilda->frames[i].points[j].blanked = ch[4] & (1 << 6);
+	// 				ilda->frames[i].points[j].last_point = ch[4] & (1 << 7);
+	// 				if(lookup_color(ilda->frames[i].points[j].color, ch[5], ilda, use_64_color_table) != 0) return -4;
+	// 				break;
+
+	// 			case ILDA_FMT_3D_TRUE:
+	// 				ilda->frames[i].points[j].x = (ch[0] << 8) | ch[1];
+	// 				ilda->frames[i].points[j].y = (ch[2] << 8) | ch[3];
+	// 				ilda->frames[i].points[j].z = (ch[4] << 8) | ch[5];
+	// 				ilda->frames[i].points[j].blanked = ch[6] & (1 << 6);
+	// 				ilda->frames[i].points[j].last_point = ch[6] & (1 << 7);
+	// 				ilda->frames[i].points[j].color[2] = ch[7]; // b
+	// 				ilda->frames[i].points[j].color[1] = ch[8]; // g
+	// 				ilda->frames[i].points[j].color[0] = ch[9]; // r
+	// 				break;
+
+	// 			case ILDA_FMT_2D_TRUE:
+	// 				ilda->frames[i].points[j].x = (ch[0] << 8) | ch[1];
+	// 				ilda->frames[i].points[j].y = (ch[2] << 8) | ch[3];
+	// 				ilda->frames[i].points[j].blanked = ch[4] & (1 << 6);
+	// 				ilda->frames[i].points[j].last_point = ch[4] & (1 << 7);
+	// 				ilda->frames[i].points[j].color[2] = ch[5]; // b
+	// 				ilda->frames[i].points[j].color[1] = ch[6]; // g
+	// 				ilda->frames[i].points[j].color[0] = ch[7]; // r
+	// 				break;
+
+	// 				// default:
+	// 				// printf("Unknown format: %d at frame %d\n", header.format, i);
+	// 				// return -3;
+	// 			}
+	// 		}
+	// 	}
+
+	// 	// read the next header
+	// 	if(i != ilda->frame_count - 1)
+	// 	{
+	// 		memcpy((uint8_t *)&header, data + fpos, sizeof(ilda_header_t));
+	// 		fpos += sizeof(ilda_header_t);
+	// 		header.point_count = ntohs(header.point_count);
+	// 		header.frame_count = ntohs(header.frame_count);
+	// 	}
+
+	// 	if(frame_count != header.frame_count)
+	// 	{
+	// 		// printf("WTFFFFFFFFFFFFFFFFFFFFFFFff frame_count != header.frame_count, %d %d\n", frame_count, header.frame_count);
+	// 		frame_count = header.frame_count;
+	// 	}
+	// }
+
+	// if(fpos != fsize)
+	// {
+	// 	printf("Length mismatch: %d and file %d =====> %d\n", fpos, fsize, fpos - fsize);
+	// }
 }
 
 void ilda_file_free(ilda_t *ilda)

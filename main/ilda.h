@@ -42,12 +42,13 @@ typedef struct
 {
 	ilda_frame_t *frames;
 	uint32_t frame_count;
+	uint32_t point_count;
 
 	uint8_t *pallete;
 	uint16_t pallete_size;
 	bool pallete_present;
-
-    uint8_t last_format;
+    
+    uint32_t max_point_per_frame;
 } ilda_t;
 
 int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_color_table);

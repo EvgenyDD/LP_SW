@@ -69,6 +69,8 @@ static int get_buf_from_file(const char *f_name, char **p_buf, size_t *buf_size)
 
 int main(int argc, char **argv)
 {
+	uint32_t biggest_point_count = 0;
+
 	struct dirent *dir;
 	DIR *d = opendir(argv[1]);
 	if(d)
@@ -86,12 +88,14 @@ int main(int argc, char **argv)
 					strcpy(fname, argv[1]);
 					strcat(fname, dir->d_name);
 					S(get_buf_from_file(fname, &buf, &buf_size));
-					printf("File %s: %d bytes ", fname, buf_size);
+					printf("\tFile %s: %d bytes ", fname, buf_size);
 					ilda_t i;
 					int sts = ilda_file_read(buf, buf_size, &i, true * 0);
+					printf("\t\t%d frames %d points\n", i.frame_count, i.point_count);
+					if(i.max_point_per_frame > biggest_point_count) biggest_point_count = i.max_point_per_frame;
 					// if(sts == 0) printf("64-color fmt\n");
 					if(sts == -4) sts = ilda_file_read(buf, buf_size, &i, false);
-					if(sts != 0) printf("Failed: %d\n", sts);
+					if(sts != 0) printf("[E]\tFailed: %d\n", sts);
 					FREE_PTR(buf);
 					ilda_file_free(&i);
 				} while(0);
@@ -99,5 +103,7 @@ int main(int argc, char **argv)
 		}
 		closedir(d);
 	}
+	printf("Max points: %d\n", biggest_point_count);
+
 	return 0;
 }
