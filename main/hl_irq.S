@@ -8,9 +8,7 @@
 #define DELAY_CYCLES 63
 
 #define LDAC_BITMASK (1<<5)
-#define CS0_BITMASK (1<<16)
-#define CS1_BITMASK (1<<13)
-
+#define COUNT_BITMASK (1<<13)
 
 
 // don't use a0/a1
@@ -77,6 +75,11 @@ decr\@:
     movi RA, \pin_mask
     s32i RA, GPIO_W1TS_REG, 0
     memw
+.endm
+
+.macro bin_cnt_pulse
+    cs_l (COUNT_BITMASK)
+    cs_h (COUNT_BITMASK)
 .endm
 
 .macro ldac_inv_pulse
@@ -173,50 +176,49 @@ NOT_CLEAR_FRAME_CUR:
     memw
 
     // Galvo - X
-    cs_h (CS0_BITMASK | CS1_BITMASK)
-    cs_l (CS0_BITMASK)
+    cs_h (COUNT_BITMASK)
 
     spi_prepare 1 176 R_NEXT_VAL R_PTR R_ARRAY // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
     spi_load_and_start R_NEXT_VAL
-        spi_prepare 2 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    spi_wait_16b DELAY_CYCLES
-
-    // Galvo - Y
-    cs_h (CS0_BITMASK | CS1_BITMASK)
-    cs_l (CS0_BITMASK)
-
-    spi_load_and_start R_NEXT_VAL
-        spi_prepare 3 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    spi_wait_16b DELAY_CYCLES
-
-    // B channel
-    cs_h (CS0_BITMASK | CS1_BITMASK)
-
-    spi_load_and_start R_NEXT_VAL
-        spi_prepare 4 176 R_NEXT_VAL R_PTR R_ARRAY // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
+        spi_prepare 3 176 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
     spi_wait_16b DELAY_CYCLES
 
     // R channel
-    cs_h (CS0_BITMASK)
-    cs_l (CS1_BITMASK)
+    bin_cnt_pulse
+
+    spi_load_and_start R_NEXT_VAL
+        spi_prepare 4 176 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
+    spi_wait_16b DELAY_CYCLES
+
+    // B channel
+    bin_cnt_pulse
+    bin_cnt_pulse
+
+    spi_load_and_start R_NEXT_VAL
+        spi_prepare 2 176 R_NEXT_VAL R_PTR R_ARRAY // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
+    spi_wait_16b DELAY_CYCLES
+
+    // Galvo - Y
+    bin_cnt_pulse
+    bin_cnt_pulse
+    bin_cnt_pulse
+    bin_cnt_pulse
+    bin_cnt_pulse
 
     spi_load_and_start R_NEXT_VAL
         spi_prepare 5 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
     spi_wait_16b DELAY_CYCLES
 
     // G channel
-    cs_h (CS0_BITMASK | CS1_BITMASK)
-    cs_l (CS1_BITMASK)
+    bin_cnt_pulse
 
     spi_load_and_start R_NEXT_VAL
     spi_wait_16b DELAY_CYCLES
 
-    // deselect
-    cs_h (CS1_BITMASK)
-    cs_l (CS0_BITMASK)
-
     // LDAC pulse (inv.)
     ldac_inv_pulse
+
+    cs_l (COUNT_BITMASK)
 
     //restore register values
     movi    a0, _l5_intr_stack

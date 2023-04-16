@@ -14,7 +14,7 @@ static i2c_config_t i2c_conf = {
 	.scl_io_num = 32,
 	.sda_pullup_en = GPIO_PULLUP_ENABLE,
 	.scl_pullup_en = GPIO_PULLUP_ENABLE,
-	.master.clk_speed = 100000,
+	.master.clk_speed = 400000,
 };
 
 void dev_drivers_init(void)

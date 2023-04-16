@@ -11,7 +11,7 @@
 #include <stdatomic.h>
 #include <sys/cdefs.h>
 
-#define ACCEL_THRS 3
+#define ACCEL_THRS 5
 
 #define STK8312_I2C_ADDR 0x3D
 
@@ -25,7 +25,8 @@
 #define STK8312_REG_SWRST 0x20
 
 atomic_bool pos_fix_failure = false;
-static int8_t imu_acc_fix[3];
+static uint8_t imu_acc_fix[3];
+uint8_t imu_acc[3];
 
 void write_reg(uint8_t reg, uint8_t value)
 {
@@ -83,17 +84,20 @@ void accel_task(void *pvParameter)
 
 	while(1)
 	{
-		int8_t imu_acc[3];
+
 		if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
 		{
-			accel_get_data(imu_acc);
+			do
+			{
+				accel_get_data(imu_acc);
+			} while(imu_acc[0] == 255 || imu_acc[1] == 255 || imu_acc[2] == 255);
 			xSemaphoreGive(g_i2c_mutex);
 
 			if(!pos_fix_failure && (imu_acc[0] || imu_acc[1] || imu_acc[2]))
 			{
-				if(abs(imu_acc[0] - imu_acc_fix[0]) > ACCEL_THRS ||
-				   abs(imu_acc[1] - imu_acc_fix[1]) > ACCEL_THRS ||
-				   abs(imu_acc[2] - imu_acc_fix[2]) > ACCEL_THRS)
+				if(abs((int)imu_acc[0] - (int)imu_acc_fix[0]) > ACCEL_THRS ||
+				   abs((int)imu_acc[1] - (int)imu_acc_fix[1]) > ACCEL_THRS ||
+				   abs((int)imu_acc[2] - (int)imu_acc_fix[2]) > ACCEL_THRS)
 				{
 					pos_fix_failure = true;
 					ESP_LOGE("", "3D pos fixture failure! %d %d %d", imu_acc[0], imu_acc[1], imu_acc[2]);
@@ -104,8 +108,13 @@ void accel_task(void *pvParameter)
 	}
 }
 
-void accel_get_data(int8_t acc[3])
+void accel_get_data(uint8_t acc[3])
 {
 	uint8_t wr = STK8312_REG_X;
-	i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, (uint8_t *)acc, 3, 2);
+	// i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, acc, 3, 2);
+	i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, acc, 1, 2);
+	wr = STK8312_REG_Y;
+	i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, &acc[1], 1, 2);
+	wr = STK8312_REG_Z;
+	i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, &acc[2], 1, 2);
 }

@@ -14,6 +14,7 @@ void display_init(void);
 void display_contrast(uint8_t contrast);
 void display_display_text(int row, int col, char *text, int text_len, bool invert);
 void display_direction(int _d);
+void display_clear(void);
 void display_clear_screen(bool invert);
 void display_clear_line(int row, bool invert);
 void display_fadeout(void);

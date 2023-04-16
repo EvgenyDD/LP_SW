@@ -184,92 +184,77 @@ void display_init(void)
 {
 	if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
 	{
-		i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+		uint8_t init_seq[] = {
+			I2C_CONTROL_BYTE_CMD_STREAM,
+			0xAE, // Turn display off
+			0xDC, // Set display start line
+			0x00, // ...value
+			0x81, // Set display contrast
+			0x2F, // ...value
+			0x20, // Set memory mode
+			0xA0, // Non-rotated display
+			0xC0, // Non-flipped vertical
+			0xA8, // Set multiplex ratio
+			0x7F, // ...value
+			0xD3, // Set display offset to zero
+			0x60, // ...value
+			0xD5, // Set display clock divider
+			0x51, // ...value
+			0xD9, // Set pre-charge
+			0x22, // ...value
+			0xDB, // Set com detect
+			0x35, // ...value
+			0xB0, // Set page address
+			0xDA, // Set com pins
+			0x12, // ...value
+			0xA4, // output ram to display
+			0xA6, // Non-inverted display
+			// 0xA7,	// Inverted display
+			0xAF, // Turn display on
+		};
 
-		i2c_master_start(cmd);
-		i2c_master_write_byte(cmd, (I2C_SH1107_ADDR << 1) | I2C_MASTER_WRITE, true);
-		i2c_master_write_byte(cmd, I2C_CONTROL_BYTE_CMD_STREAM, true);
-		i2c_master_write_byte(cmd, 0xAE, true); // Turn display off
-		i2c_master_write_byte(cmd, 0xDC, true); // Set display start line
-		i2c_master_write_byte(cmd, 0x00, true); // ...value
-		i2c_master_write_byte(cmd, 0x81, true); // Set display contrast
-		i2c_master_write_byte(cmd, 0x2F, true); // ...value
-		i2c_master_write_byte(cmd, 0x20, true); // Set memory mode
-		i2c_master_write_byte(cmd, 0xA0, true); // Non-rotated display
-		i2c_master_write_byte(cmd, 0xC0, true); // Non-flipped vertical
-		i2c_master_write_byte(cmd, 0xA8, true); // Set multiplex ratio
-		i2c_master_write_byte(cmd, 0x7F, true); // ...value
-		i2c_master_write_byte(cmd, 0xD3, true); // Set display offset to zero
-		i2c_master_write_byte(cmd, 0x60, true); // ...value
-		i2c_master_write_byte(cmd, 0xD5, true); // Set display clock divider
-		i2c_master_write_byte(cmd, 0x51, true); // ...value
-		i2c_master_write_byte(cmd, 0xD9, true); // Set pre-charge
-		i2c_master_write_byte(cmd, 0x22, true); // ...value
-		i2c_master_write_byte(cmd, 0xDB, true); // Set com detect
-		i2c_master_write_byte(cmd, 0x35, true); // ...value
-		i2c_master_write_byte(cmd, 0xB0, true); // Set page address
-		i2c_master_write_byte(cmd, 0xDA, true); // Set com pins
-		i2c_master_write_byte(cmd, 0x12, true); // ...value
-		i2c_master_write_byte(cmd, 0xA4, true); // output ram to display
-		i2c_master_write_byte(cmd, 0xA6, true); // Non-inverted display
-		// i2c_master_write_byte(cmd, 0xA7, true);	// Inverted display
-		i2c_master_write_byte(cmd, 0xAF, true); // Turn display on
+		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, init_seq, sizeof(init_seq), 2));
 
-		i2c_master_stop(cmd);
-
-		esp_err_t espRc = i2c_master_cmd_begin(0, cmd, 10 / portTICK_PERIOD_MS);
-		if(espRc == ESP_OK)
-		{
-			ESP_LOGI("", "OLED configured successfully");
-		}
-		else
-		{
-			ESP_LOGE("", "OLED configuration failed. code: 0x%.2X", espRc);
-		}
-		i2c_cmd_link_delete(cmd);
 		xSemaphoreGive(g_i2c_mutex);
+	}
+	else
+	{
+		ESP_LOGE("", "OLED FAILED TO ACQ MUTEX");
 	}
 }
 
+static uint8_t tx_buffer[4096];
+
 void display_image(int page, int seg, uint8_t *images, int width)
 {
-	i2c_cmd_handle_t cmd;
+	if(page >= HEIGHT / 8) ESP_LOGE("", "page >= HEIGHT / 8");
+	if(seg >= WIDTH) ESP_LOGE("", "seg >= WIDTH");
 
-	if(page >= HEIGHT / 8) return;
-	if(seg >= WIDTH) return;
+	if(width > sizeof(tx_buffer)) ESP_LOGE("", "width > sizeof(tx_buffer)");
 
 	if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
 	{
 		uint8_t columLow = seg & 0x0F;
 		uint8_t columHigh = (seg >> 4) & 0x0F;
 
-		cmd = i2c_cmd_link_create();
-		i2c_master_start(cmd);
-		i2c_master_write_byte(cmd, (I2C_SH1107_ADDR << 1) | I2C_MASTER_WRITE, true);
+		uint8_t adr_set[4] = {
+			I2C_CONTROL_BYTE_CMD_STREAM,
+			(0x10 + columHigh), // Set Higher Column Start Address for Page Addressing Mode
+			(0x00 + columLow),	// Set Lower Column Start Address for Page Addressing Mode
+			0xB0 | page,		// Set Page Start Address for Page Addressing Mode
+		};
 
-		i2c_master_write_byte(cmd, I2C_CONTROL_BYTE_CMD_STREAM, true);
-		// Set Higher Column Start Address for Page Addressing Mode
-		i2c_master_write_byte(cmd, (0x10 + columHigh), true);
-		// Set Lower Column Start Address for Page Addressing Mode
-		i2c_master_write_byte(cmd, (0x00 + columLow), true);
-		// Set Page Start Address for Page Addressing Mode
-		i2c_master_write_byte(cmd, 0xB0 | page, true);
+		tx_buffer[0] = I2C_CONTROL_BYTE_DATA_STREAM;
+		memcpy(&tx_buffer[1], images, width);
 
-		i2c_master_stop(cmd);
-		i2c_master_cmd_begin(0, cmd, 10 / portTICK_PERIOD_MS);
-		i2c_cmd_link_delete(cmd);
+		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, adr_set, sizeof(adr_set), 2));
+		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, tx_buffer, 1 + width, 2));
 
-		cmd = i2c_cmd_link_create();
-		i2c_master_start(cmd);
-		i2c_master_write_byte(cmd, (I2C_SH1107_ADDR << 1) | I2C_MASTER_WRITE, true);
-
-		i2c_master_write_byte(cmd, I2C_CONTROL_BYTE_DATA_STREAM, true);
-		i2c_master_write(cmd, images, width, true);
-
-		i2c_master_stop(cmd);
-		i2c_master_cmd_begin(0, cmd, 10 / portTICK_PERIOD_MS);
-		i2c_cmd_link_delete(cmd);
 		xSemaphoreGive(g_i2c_mutex);
+	}
+	else
+	{
+		ESP_LOGE("", "OLED FAILED TO ACQ MUTEX");
 	}
 }
 
@@ -277,16 +262,18 @@ void display_contrast(uint8_t contrast)
 {
 	if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
 	{
-		i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-		i2c_master_start(cmd);
-		i2c_master_write_byte(cmd, (I2C_SH1107_ADDR << 1) | I2C_MASTER_WRITE, true);
-		i2c_master_write_byte(cmd, I2C_CONTROL_BYTE_CMD_STREAM, true);
-		i2c_master_write_byte(cmd, 0x81, true); // Set Contrast Control Register
-		i2c_master_write_byte(cmd, contrast, true);
-		i2c_master_stop(cmd);
-		i2c_master_cmd_begin(0, cmd, 10 / portTICK_PERIOD_MS);
-		i2c_cmd_link_delete(cmd);
+		uint8_t contrast_set[3] = {
+			I2C_CONTROL_BYTE_CMD_STREAM,
+			0x81, // Set Contrast Control Register
+			contrast,
+		};
+		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, contrast_set, sizeof(contrast_set), 2));
+
 		xSemaphoreGive(g_i2c_mutex);
+	}
+	else
+	{
+		ESP_LOGE("", "OLED FAILED TO ACQ MUTEX");
 	}
 }
 
@@ -369,8 +356,16 @@ void display_display_text(int row, int col, char *text, int text_len, bool inver
 		_rowadd = -1;
 		_coladd = 0;
 	}
-	if(row >= h) return;
-	if(col >= w) return;
+	if(row >= h)
+	{
+		ESP_LOGE("", "row >= h");
+		return;
+	}
+	if(col >= w)
+	{
+		ESP_LOGE("", "col >= w");
+		return;
+	}
 	if(col + text_len > w) _length = w - col;
 	ESP_LOGD("", "_direction=%d WIDTH=%d HEIGHT=%d _length=%d _row=%d _col=%d", _direction, w, h, _length, _row, _col);
 
@@ -395,6 +390,11 @@ void display_clear_screen(bool invert)
 		memcpy(&disp_buf[page][0], zero, 64);
 		display_image(page, 0, zero, WIDTH);
 	}
+}
+
+void display_clear(void)
+{
+	memset(disp_buf, 0, sizeof(disp_buf));
 }
 
 void display_clear_line(int row, bool invert)
@@ -700,7 +700,6 @@ void display_rotate_image(uint8_t *buf, int dir)
 			buf[i] = display_rotate_byte(wk[7 - i]);
 		}
 	}
-	return;
 }
 
 void display_fadeout(void)

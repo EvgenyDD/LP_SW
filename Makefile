@@ -1,5 +1,5 @@
 PROJECT_NAME := LP
-ESPPORT=COM5
+include comport_sel.mk
 include $(IDF_PATH)/make/project.mk
 
 LISTING=build/$(PROJECT_NAME).lst

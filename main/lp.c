@@ -16,8 +16,7 @@
 #define PIN_LDAC 5
 #define PIN_DATA 4
 #define PIN_CLK 12
-#define PIN_CS0 13
-#define PIN_CS1 16
+#define PIN_COUNT 13
 
 #define SPI_BUS HSPI_HOST
 #define DAC_SPI SPI2
@@ -27,7 +26,7 @@
 
 spi_nodma_device_handle_t lsr_spi = NULL;
 
-volatile uint32_t gs_pnt_cnt[1] = {2};
+volatile uint32_t gs_pnt_cnt[1] = {1};
 volatile uint32_t gs_pnt_cur[1] = {0};
 
 volatile uint16_t daq_presets[6 * 6] = {0};
@@ -37,18 +36,14 @@ void lp_init(void)
 	gpio_reset_pin(PIN_LDAC);
 	// gpio_reset_pin(PIN_DATA);
 	// gpio_reset_pin(PIN_CLK);
-	gpio_reset_pin(PIN_CS0);
-	gpio_reset_pin(PIN_CS1);
+	gpio_reset_pin(PIN_COUNT);
 
 	gpio_set_direction(PIN_LDAC, GPIO_MODE_OUTPUT);
 	// gpio_set_direction(PIN_DATA, GPIO_MODE_OUTPUT);
 	// gpio_set_direction(PIN_CLK, GPIO_MODE_OUTPUT);
-	gpio_set_direction(PIN_CS0, GPIO_MODE_OUTPUT);
-	gpio_set_direction(PIN_CS1, GPIO_MODE_OUTPUT);
-
+	gpio_set_direction(PIN_COUNT, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_LDAC, 1);
-	gpio_set_level(PIN_CS0, 1);
-	gpio_set_level(PIN_CS1, 1);
+	gpio_set_level(PIN_COUNT, 0);
 
 	spi_nodma_device_handle_t spi;
 	spi_nodma_bus_config_t buscfg = {
@@ -120,7 +115,7 @@ void lp_init(void)
 	memset((void *)daq_presets, 0, sizeof(daq_presets));
 	for(uint32_t i = 0; i < 6; i++)
 	{
-		daq_presets[i * 6] = 22;
+		daq_presets[i * 6] = 1000;
 	}
 
 #define p_l 2048 - 0 * 100;
@@ -138,9 +133,9 @@ void lp_init(void)
 	daq_presets[6 * 3 + 1] = p_h; // X
 	daq_presets[6 * 3 + 2] = p_l; // Y
 
-	daq_presets[6 * 1 + 3] = 4095; // R
-	daq_presets[6 * 1 + 4] = 4095; // G
-	daq_presets[6 * 1 + 5] = 4095; // B
+	daq_presets[6 * 1 + 3] = 0 + 0 * 4095; // R
+	daq_presets[6 * 1 + 4] = 0 + 0 * 4095; // G
+	daq_presets[6 * 1 + 5] = 0 + 0 * 4095; // B
 
 	// daq_presets[5 * 6] = 400;
 
@@ -151,13 +146,18 @@ void lp_init(void)
 	// daq_presets[6 * 5 + 5] = 4095;
 
 	// disable unused DAC channel
-	PIN_H(PIN_CS0);
-	PIN_H(PIN_CS1);
+	PIN_L(PIN_LDAC);
+	PIN_H(PIN_LDAC);
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		PIN_H(PIN_COUNT);
+		PIN_L(PIN_COUNT);
+	}
 	DAC_SPI.data_buf[0] = (1 << (15 - 8)) | (0 << (12 - 8));
 	DAC_SPI.cmd.usr = 1;
 	while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
 		;
-	PIN_L(PIN_CS0);
+	PIN_H(PIN_COUNT);
 
 	timer_start(TIMER_GROUP_0, TIMER_0);
 }
