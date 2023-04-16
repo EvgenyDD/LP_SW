@@ -22,4 +22,6 @@ typedef struct __attribute__((packed))
 	uint16_t b_flipped;
 } s;
 
+#define FLIP_U16(x) ((x >> 8) | ((x << 8) & 0xFF00))
+
 #endif // LP_H

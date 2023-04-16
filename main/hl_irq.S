@@ -8,8 +8,8 @@
 #define DELAY_CYCLES 63
 
 #define LDAC_BITMASK (1<<5)
-#define CS0_BITMASK (1<<13)
-#define CS1_BITMASK (1<<16)
+#define CS0_BITMASK (1<<16)
+#define CS1_BITMASK (1<<13)
 
 
 

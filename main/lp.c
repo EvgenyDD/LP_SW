@@ -27,7 +27,7 @@
 
 spi_nodma_device_handle_t lsr_spi = NULL;
 
-volatile uint32_t gs_pnt_cnt[1] = {6};
+volatile uint32_t gs_pnt_cnt[1] = {2};
 volatile uint32_t gs_pnt_cur[1] = {0};
 
 volatile uint16_t daq_presets[6 * 6] = {0};
@@ -120,15 +120,35 @@ void lp_init(void)
 	memset((void *)daq_presets, 0, sizeof(daq_presets));
 	for(uint32_t i = 0; i < 6; i++)
 	{
-		daq_presets[i * 6] = 30 + i * 5;
+		daq_presets[i * 6] = 22;
 	}
-	daq_presets[5 * 6] = 400;
 
-	daq_presets[6 * 1 + 1] = 4095;
-	daq_presets[6 * 2 + 2] = 4095;
-	daq_presets[6 * 3 + 3] = 4095;
-	daq_presets[6 * 4 + 4] = 4095;
-	daq_presets[6 * 5 + 5] = 4095;
+#define p_l 2048 - 0 * 100;
+#define p_h 2048 + 0 * 100;
+
+	daq_presets[6 * 0 + 1] = p_l; // X
+	daq_presets[6 * 0 + 2] = p_l; // Y
+
+	daq_presets[6 * 1 + 1] = p_l; // X
+	daq_presets[6 * 1 + 2] = p_h; // Y
+
+	daq_presets[6 * 2 + 1] = p_h; // X
+	daq_presets[6 * 2 + 2] = p_h; // Y
+
+	daq_presets[6 * 3 + 1] = p_h; // X
+	daq_presets[6 * 3 + 2] = p_l; // Y
+
+	daq_presets[6 * 1 + 3] = 4095; // R
+	daq_presets[6 * 1 + 4] = 4095; // G
+	daq_presets[6 * 1 + 5] = 4095; // B
+
+	// daq_presets[5 * 6] = 400;
+
+	// daq_presets[6 * 1 + 1] = 4095;
+	// daq_presets[6 * 2 + 2] = 4095;
+	// daq_presets[6 * 3 + 3] = 4095;
+	// daq_presets[6 * 4 + 4] = 4095;
+	// daq_presets[6 * 5 + 5] = 4095;
 
 	// disable unused DAC channel
 	PIN_H(PIN_CS0);
