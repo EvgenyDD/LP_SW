@@ -1,50 +1,37 @@
-#include "accel.h"
-#include "buttons.h"
-#include "dev_drivers.h"
-#include "display.h"
 #include "driver/gpio.h"
-#include "driver/ledc.h"
-#include "driver/sdmmc_defs.h"
-#include "driver/sdmmc_host.h"
+#include "esp32/clk.h"
 #include "esp32/pm.h"
 #include "esp_err.h"
 #include "esp_eth.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_pm.h"
-#include "esp_vfs_fat.h"
+#include "fan.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/emac_hal.h"
 #include "hal/emac_ll.h"
 #include "hal/gpio_hal.h"
+#include "hw.h"
+#include "i2c_accel.h"
 #include "i2c_adc.h"
+#include "i2c_display.h"
+#include "i2c_exp.h"
+#include "i2c_fram.h"
 #include "lp.h"
+#include "sd_card.h"
 #include "sdkconfig.h"
-#include "sdmmc_cmd.h"
 #include "tcpip_adapter.h"
 #include <stdatomic.h>
-#include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/unistd.h>
 
-extern atomic_bool pos_fix_failure;
 extern volatile uint32_t gs_pnt_cnt[1];
 
-
-// 4.14612523+0.01133214557*x+(-1.176550817E-6)*x^2 -> -24V
-// 0.0105615645*x-0.01300610299 -> U meters
-// thermistors: 3380K 10k
 // duty 300 nihua 350 works
 // fan 850 min @8khz
 //
-
-// CURRENT sensor
-// ina180a2
-// 0.04198936409*x+0.4741118019 (W) [172W max]
-
-static ledc_channel_config_t ledc_channel;
+// 74LVCU04AD,112 NXPERIA
+// 74LVC161D,112 NXPERIA
 
 static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -80,7 +67,8 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
 	ESP_LOGI("", "~~~~~~~~~~~");
 }
 
-extern void accel_reset_fixture(void);
+char buffer[128];
+
 extern void lp_init(void);
 
 int32_t PPSCount_ASM[2];
@@ -91,31 +79,27 @@ extern volatile uint16_t daq_presets[];
 
 #include "soc/timer_group_reg.h"
 
-extern uint8_t imu_acc[3];
-
-void display_task(void *pvParameter)
+static void display_task(void *pvParameter)
 {
-	display_contrast(10);
-	char buffer[128];
+	i2c_display_contrast(10);
 	while(1)
 	{
-		display_clear();
+		i2c_display_clear();
 		for(uint8_t i = 0; i < 8; i++)
 		{
-			sprintf(buffer, "%d: %04d ", i, adc_get(i));
-			display_display_text(i, 0, buffer, strlen(buffer), false);
+			// sprintf(buffer, "%d: %04d ", i, adc_get(i));
+			// i2c_display_display_text(i, 0, buffer, strlen(buffer), false);
 		}
 
 		for(uint8_t i = 0; i < 3; i++)
 		{
-			const char axs[] = {'X', 'Y', 'Z'};
-			sprintf(buffer, "%c: %03d ", axs[i], imu_acc[i]);
-			display_display_text(9 + i, 0, buffer, strlen(buffer), false);
+			// const char axs[] = {'X', 'Y', 'Z'};
+			// sprintf(buffer, "%c: %03d ", axs[i], imu_acc[i]);
+			// i2c_display_display_text(9 + i, 0, buffer, strlen(buffer), false);
 		}
-		uint8_t btn = buttons_get();
-		if(btn & 1) btn &= ~(1<<0);
-		sprintf(buffer, "B: %02d ", btn);
-		display_display_text(12, 0, buffer, strlen(buffer), false);
+
+		// sprintf(buffer, "B: %02d ", btn);
+		// i2c_display_display_text(12, 0, buffer, strlen(buffer), false);
 
 		static uint32_t flagOn = 0, btn_was_presed = 0, ch = 5, duty = 1000;
 
@@ -127,114 +111,111 @@ void display_task(void *pvParameter)
 		// 	flagOn = 1;
 		// }
 		// else
-		{
-			if(btn)
-			{
-				if(btn_was_presed == 0)
-				{
-					btn_was_presed = 1;
-					if(btn == 64) //-
-					{
-						if(--ch < 3) ch = 5;
-						daq_presets[6 * 0 + 3] = 0;
-						daq_presets[6 * 0 + 4] = 0;
-						daq_presets[6 * 0 + 5] = 0;
-						duty -= 1;
-						ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty);
-						ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+		// {
+		// 	if(btn)
+		// 	{
+		// 		if(btn_was_presed == 0)
+		// 		{
+		// 			btn_was_presed = 1;
+		// 			if(btn == 64) //-
+		// 			{
+		// 				if(--ch < 3) ch = 5;
+		// 				daq_presets[6 * 0 + 3] = 0;
+		// 				daq_presets[6 * 0 + 4] = 0;
+		// 				daq_presets[6 * 0 + 5] = 0;
+		// 				duty -= 1;
+		// 				// ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty);
+		// 				// ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 
-						if(duty & 1)
-						{
-							lsr_volt_enable();
-						}
-						else
-						{
-							lsr_volt_disable();
-						}
-					}
-					else if(btn == 16) //+
-					{
-						if(++ch > 5) ch = 3;
-						daq_presets[6 * 0 + 3] = 0;
-						daq_presets[6 * 0 + 4] = 0;
-						daq_presets[6 * 0 + 5] = 0;
-						duty += 1;
-						ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty);
-						ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
-					}
-					else if(btn == 128)
-					{
-						daq_presets[6 * 0 + ch] = 1024;
-					}
-					else if(btn == 8)
-					{
-						daq_presets[6 * 0 + ch] = 2048;
-					}
-					else if(btn == 32)
-					{
-						flagOn++;
-						daq_presets[6 * 0 + ch] = (flagOn & 1) ? 4095 : 0;
-						gs_pnt_cnt[0] = (flagOn & 2) ? 2 : 1;
-					}
-				}
-			}
-			else
-			{
-				btn_was_presed = 0;
-			}
-		}
+		// 				if(duty & 1)
+		// 				{
+		// 					lsr_volt_enable();
+		// 				}
+		// 				else
+		// 				{
+		// 					lsr_volt_disable();
+		// 				}
+		// 			}
+		// 			else if(btn == 16) //+
+		// 			{
+		// 				if(++ch > 5) ch = 3;
+		// 				daq_presets[6 * 0 + 3] = 0;
+		// 				daq_presets[6 * 0 + 4] = 0;
+		// 				daq_presets[6 * 0 + 5] = 0;
+		// 				duty += 1;
+		// 				// ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty);
+		// 				// ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+		// 			}
+		// 			else if(btn == 128)
+		// 			{
+		// 				daq_presets[6 * 0 + ch] = 1024;
+		// 			}
+		// 			else if(btn == 8)
+		// 			{
+		// 				daq_presets[6 * 0 + ch] = 2048;
+		// 			}
+		// 			else if(btn == 32)
+		// 			{
+		// 				flagOn++;
+		// 				daq_presets[6 * 0 + ch] = (flagOn & 1) ? 4095 : 0;
+		// 				gs_pnt_cnt[0] = (flagOn & 2) ? 2 : 1;
+		// 			}
+		// 		}
+		// 	}
+		// 	else
+		// 	{
+		// 		btn_was_presed = 0;
+		// 	}
+		// }
 
 		sprintf(buffer, "V: %04d ", daq_presets[6 * 0 + ch]);
-		display_display_text(13, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(13, 0, buffer, strlen(buffer), false);
 
 		sprintf(buffer, "ch: %01d ", duty);
-		display_display_text(14, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(14, 0, buffer, strlen(buffer), false);
 
 		vTaskDelay(50 / portTICK_PERIOD_MS);
 #if 0
-			display_contrast(0xff);
-			display_direction(DIRECTION180);
-			// display_direction(DIRECTION180);
-			display_display_text(0, 0, "M5 Stick", 8, false);
-			display_display_text(1, 0, "64x128  ", 8, false);
-			display_display_text(2, 0, "ABCDEFGH", 8, false);
-			display_display_text(3, 0, "abcdefgh", 8, false);
-			display_display_text(4, 0, "01234567", 8, false);
-			display_display_text(5, 0, "Hello   ", 8, false);
-			display_display_text(6, 0, "World!! ", 8, false);
+			i2c_display_contrast(0xff);
+			i2c_display_direction(DIRECTION180);
+			// i2c_display_direction(DIRECTION180);
+			i2c_display_display_text(0, 0, "M5 Stick", 8, false);
+			i2c_display_display_text(1, 0, "64x128  ", 8, false);
+			i2c_display_display_text(2, 0, "ABCDEFGH", 8, false);
+			i2c_display_display_text(3, 0, "abcdefgh", 8, false);
+			i2c_display_display_text(4, 0, "01234567", 8, false);
+			i2c_display_display_text(5, 0, "Hello   ", 8, false);
+			i2c_display_display_text(6, 0, "World!! ", 8, false);
 
-			display_display_text(8, 0, "M5 Stick", 8, true);
-			display_display_text(9, 0, "64x128  ", 8, true);
-			display_display_text(10, 0, "ABCDEFGH", 8, true);
-			display_display_text(11, 0, "abcdefgh", 8, true);
-			display_display_text(12, 0, "01234567", 8, true);
-			display_display_text(13, 0, "Hello   ", 8, true);
-			display_display_text(14, 0, "World!! ", 8, true);
+			i2c_display_display_text(8, 0, "M5 Stick", 8, true);
+			i2c_display_display_text(9, 0, "64x128  ", 8, true);
+			i2c_display_display_text(10, 0, "ABCDEFGH", 8, true);
+			i2c_display_display_text(11, 0, "abcdefgh", 8, true);
+			i2c_display_display_text(12, 0, "01234567", 8, true);
+			i2c_display_display_text(13, 0, "Hello   ", 8, true);
+			i2c_display_display_text(14, 0, "World!! ", 8, true);
 
 			vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-			display_clear_screen(true);
-			display_direction(DIRECTION180);
-			display_contrast(0xff);
+			i2c_display_clear_screen(true);
+			i2c_display_direction(DIRECTION180);
+			i2c_display_contrast(0xff);
 			int center = 7;
-			display_display_text(center, 0, "  Good  ", 8, true);
-			display_display_text(center + 1, 0, "  Bye!! ", 8, true);
+			i2c_display_display_text(center, 0, "  Good  ", 8, true);
+			i2c_display_display_text(center + 1, 0, "  Bye!! ", 8, true);
 			vTaskDelay(2000 / portTICK_PERIOD_MS);
 
 			// display_fadeout();
 
 			for(int contrast = 0xff; contrast > 0; contrast = contrast - 0x10)
 			{
-				display_contrast(contrast);
+				i2c_display_contrast(contrast);
 				vTaskDelay(10);
 			}
 #endif
 	}
 }
 
-#include "esp_clk.h"
-
-static uint8_t ram_fast[100 * 1024] = {0};
 void app_main(void)
 {
 	esp_pm_config_esp32_t pm_config = {
@@ -245,30 +226,18 @@ void app_main(void)
 
 	ESP_LOGI("", "Running on core: %d\n", xPortGetCoreID());
 
-	dev_drivers_init();
+	fan_init();
+	hw_init();
 
-	{
-		ledc_timer_config_t ledc_timer = {
-			.duty_resolution = LEDC_TIMER_10_BIT,
-			.freq_hz = 8000,
-			.speed_mode = LEDC_HIGH_SPEED_MODE,
-			.timer_num = LEDC_TIMER_0,
-			.clk_cfg = LEDC_AUTO_CLK,
-		};
-
-		ledc_timer_config(&ledc_timer);
-		ledc_channel.channel = LEDC_CHANNEL_0;
-		ledc_channel.duty = 0;
-		ledc_channel.gpio_num = 16;
-		ledc_channel.speed_mode = LEDC_HIGH_SPEED_MODE;
-		ledc_channel.hpoint = 0;
-		ledc_channel.timer_sel = LEDC_TIMER_0;
-		ledc_channel_config(&ledc_channel);
-
-		ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, 0);
-		ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
-	}
 	tcpip_adapter_init();
+
+	i2c_accel_init();
+	i2c_adc_init();
+	i2c_exp_init();
+
+	i2c_display_init();
+	i2c_display_direction(DIRECTION180);
+	i2c_display_clear_screen(0);
 
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 	ESP_ERROR_CHECK(tcpip_adapter_set_default_eth_handlers());
@@ -293,111 +262,139 @@ void app_main(void)
 	esp_eth_handle_t eth_handle = NULL;
 	ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
 
-#ifndef CONFIG_FREERTOS_UNICORE
-	xTaskCreatePinnedToCore(accel_task, "accel_task", 8000, NULL, 1, NULL, 1);
-#else
-	xTaskCreate(accel_task, "accel_task", 8000, NULL, 1, NULL);
-#endif
-
 	ESP_ERROR_CHECK(esp_eth_start(eth_handle));
 
-	i2c_adc_init();
-
-#if 1
-	display_init();
-	display_direction(DIRECTION180);
-	display_clear_screen(0);
-#if 1
-#ifndef CONFIG_FREERTOS_UNICORE
-	xTaskCreatePinnedToCore(display_task, "display_task", 8000, NULL, 1, NULL, 1);
-#else
-	xTaskCreate(display_task, "display_task", 8000, NULL, 1, NULL);
-#endif
-#endif
-	buttons_init();
-#endif
+	// #if 1
+	// #ifndef CONFIG_FREERTOS_UNICORE
+	// 	xTaskCreatePinnedToCore(display_task, "display_task", 8000, NULL, 1, NULL, 1);
+	// #else
+	// 	xTaskCreate(display_task, "display_task", 8000, NULL, 1, NULL);
+	// #endif
+	// #endif
 
 	lp_init();
 
-#if 1
-	do
-	{
-		sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-		host.flags = SDMMC_HOST_FLAG_1BIT; // SDMMC_HOST_FLAG_DDR or SDMMC_HOST_FLAG_1BIT
-		host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
-		sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-		slot_config.width = 1;
-		esp_vfs_fat_sdmmc_mount_config_t mount_config = {
-			.format_if_mount_failed = false,
-			.max_files = 5};
-		sdmmc_card_t *card;
-		esp_err_t ret = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &card);
-		if(ret != ESP_OK)
-		{
-			if(ret == ESP_FAIL)
-				ESP_LOGE("SD", "Failed to mount filesystem. If you want the card to be formatted, set format_if_mount_failed = true.");
-			else
-				ESP_LOGE("SD", "Failed to initialize the card (%d). Make sure SD card lines have pull-up resistors in place.", ret);
-			break;
-		}
+	// sd_card_init();
 
-		sdmmc_card_print_info(stdout, card);
+	vTaskDelay(5);
 
-		ESP_LOGI("SD", "Opening file");
-		FILE *f = fopen("/sdcard/hello.txt", "w");
-		if(f == NULL)
-		{
-			ESP_LOGE("SD", "Failed to open file for writing");
-			break;
-		}
-		fprintf(f, "Hello %s!\n", card->cid.name);
-		fclose(f);
-		ESP_LOGI("SD", "File written");
+	uint8_t db = 0;
+	i2c_fram_read(0, (uint8_t *)&db, 4);
+	ESP_LOGI("", "FRAM fr %d", db);
+	db++;
+	i2c_fram_write(0, (uint8_t *)&db, 4);
 
-		struct stat st;
-		if(stat("/sdcard/foo.txt", &st) == 0)
-		{
-			unlink("/sdcard/foo.txt"); // Delete it if it exists
-		}
+	db = 0;
+	i2c_fram_read(2 * 1024 - 1, (uint8_t *)&db, 1);
+	db++;
+	ESP_LOGI("", "FRAM lt %d", db);
+	i2c_fram_write(2 * 1024 - 1, (uint8_t *)&db, 1);
 
-		ESP_LOGI("SD", "Renaming file");
-		if(rename("/sdcard/hello.txt", "/sdcard/foo.txt") != 0)
-		{
-			ESP_LOGE("SD", "Rename failed");
-			break;
-		}
+	// lsr_volt_disable();
 
-		ESP_LOGI("SD", "Reading file");
-		f = fopen("/sdcard/foo.txt", "r");
-		if(f == NULL)
-		{
-			ESP_LOGE("SD", "Failed to open file for reading");
-			break;
-		}
-
-		char line[64];
-		fgets(line, sizeof(line), f);
-		fclose(f);
-
-		char *pos = strchr(line, '\n'); // strip newline
-		if(pos) *pos = '\0';
-		ESP_LOGI("SD", "Read from file: '%s'", line);
-
-		esp_vfs_fat_sdmmc_unmount(); // unmount partition and disable SDMMC host peripheral
-		ESP_LOGI("SD", "Card unmounted");
-	} while(0);
-#endif
-
-	gpio_pad_select_gpio(34);
-	gpio_set_direction(34, GPIO_MODE_INPUT);
+	ESP_LOGI("HEAP", "Free heap: %d", xPortGetFreeHeapSize());
 
 	while(1)
 	{
-		if(pos_fix_failure)
+		i2c_adc_read();
+		buttons_read(1); // todo debounce
+		i2c_accel_read();
+
 		{
-			vTaskDelay(200);
-			accel_reset_fixture();
+			// do
+			// {
+			// 	i2c_accel_get_data(imu_acc);
+			// } while(imu_acc[0] == 255 || imu_acc[1] == 255 || imu_acc[2] == 255);
+
+			// if(!pos_fix_failure && (imu_acc[0] || imu_acc[1] || imu_acc[2]))
+			// {
+			// 	if(abs((int)imu_acc[0] - (int)imu_acc_fix[0]) > ACCEL_THRS ||
+			// 	   abs((int)imu_acc[1] - (int)imu_acc_fix[1]) > ACCEL_THRS ||
+			// 	   abs((int)imu_acc[2] - (int)imu_acc_fix[2]) > ACCEL_THRS)
+			// 	{
+			// 		pos_fix_failure = true;
+			// 		ESP_LOGE("", "3D pos fixture failure! %d %d %d", imu_acc[0], imu_acc[1], imu_acc[2]);
+			// 	}
+			// }
 		}
+
+		static uint32_t fan_spd = 800;
+		if(btn_j_l.pressed_shot)
+		{
+			fan_spd -= 10;
+			fan_set_level(fan_spd);
+		}
+		else if(btn_j_r.pressed_shot)
+		{
+			fan_spd += 10;
+			fan_set_level(fan_spd);
+		}
+
+		static uint8_t colr = CLR_R;
+		if(btn_j_l.pressed_shot)
+		{
+			if(--colr < CLR_NULL) colr = CLR_WHT;
+		}
+		else if(btn_j_r.pressed_shot)
+		{
+			if(++colr > CLR_WHT) colr = CLR_NULL;
+		}
+
+		static bool xc = false;
+		if(btn_j_press.pressed_shot)
+		{
+			xc = true;
+			lp_square(colr);
+		}
+		if(btn_j_press.unpressed_shot)
+		{
+			xc = false;
+			lp_blank();
+		}
+
+		static uint32_t upd_tmr = 0;
+		if(upd_tmr == 0)
+		{
+			upd_tmr = 5;
+			{
+				// i2c_display_clear_screen(0);
+				i2c_display_clear();
+
+				sprintf(buffer, "%d.%02dA ", i_p / 1000, (i_p % 1000) / 10);
+				i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+
+				sprintf(buffer, "%d.%01dV ", v_p / 1000, (v_p % 1000) / 100);
+				i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
+
+				sprintf(buffer, "%-d.%01dV ", v_n / 1000, (v_n % 1000) / 100);
+				i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
+
+				sprintf(buffer, "%d.%01dV ", v_i / 1000, (v_i % 1000) / 100);
+				i2c_display_display_text(3, 0, buffer, strlen(buffer), false);
+
+				sprintf(buffer, "%d %d", t_drv / 10, t_lsr_head / 10);
+				i2c_display_display_text(4, 0, buffer, strlen(buffer), false);
+
+				sprintf(buffer, "%d %d", t_inv_p / 10, t_inv_n / 10);
+				i2c_display_display_text(5, 0, buffer, strlen(buffer), false);
+
+				int W = v_p * i_p / 1000;
+				sprintf(buffer, "%d.%01dW ", W / 1000, (W % 1000) / 100);
+				i2c_display_display_text(7, 0, buffer, strlen(buffer), false);
+
+				sprintf(buffer, "%s %s  ", clr_to_str(colr), xc ? "ON" : "OFF");
+				i2c_display_display_text(9, 0, buffer, strlen(buffer), false);
+			}
+		}
+		else
+			upd_tmr--;
+
+		// if(pos_fix_failure)
+		// {
+		// 	vTaskDelay(200);
+		// 	accel_reset_fixture();
+		// }
+
 		vTaskDelay(1);
 
 		// if(gpio_ll_get_level(&GPIO, 34) == 0)

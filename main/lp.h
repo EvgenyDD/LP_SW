@@ -4,24 +4,23 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct __attribute__((packed))
-{
-	void *p_frame_next;
-	uint32_t repeat_counter;
-	uint32_t point_count;
-	uint32_t point_current;
-} lframe_header_t;
+#define CLR_NULL 2
+#define CLR_B 4
+#define CLR_R 5
+#define CLR_G 3
+#define CLR_WHT 6
 
-typedef struct __attribute__((packed))
+inline const char *clr_to_str(uint32_t color)
 {
-	uint16_t time_us;
-	uint16_t x_flipped;
-	uint16_t y_flipped;
-	uint16_t r_flipped;
-	uint16_t g_flipped;
-	uint16_t b_flipped;
-} s;
+	if(color == CLR_NULL) return "no";
+	if(color == CLR_R) return "red";
+	if(color == CLR_G) return "grn";
+	if(color == CLR_B) return "blu";
+	if(color == CLR_WHT) return "wht";
+	return "-";
+}
 
-#define FLIP_U16(x) ((x >> 8) | ((x << 8) & 0xFF00))
+void lp_square(uint8_t color);
+void lp_blank(void);
 
 #endif // LP_H

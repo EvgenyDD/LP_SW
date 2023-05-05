@@ -422,7 +422,7 @@ int ilda_file_read2(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_
 		else
 		{
 			ilda->frames[i].point_count = header.point_count;
-			ilda->frames[i].points = (ilda_point_t *)calloc(header.point_count, sizeof(ilda_point_t));
+			ilda->frames[i].points = (ilda_pointo_t *)calloc(header.point_count, sizeof(ilda_point_t));
 			for(uint32_t j = 0; j < header.point_count; j++)
 			{
 				uint8_t ch[chunk];

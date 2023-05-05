@@ -1,5 +1,4 @@
-#include "display.h"
-#include "dev_drivers.h"
+#include "i2c_display.h"
 #include "driver/i2c.h"
 #include "esp_log.h"
 #include <string.h>
@@ -48,6 +47,7 @@ typedef enum
 static int _pages = HEIGHT / 8;
 static int _direction = DIRECTION0;
 static uint8_t disp_buf[16][64];
+static uint8_t tx_buffer[4096];
 
 uint8_t font8x8_basic_tr[128][8] = {
 	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // U+0000 (nul)
@@ -180,112 +180,83 @@ uint8_t font8x8_basic_tr[128][8] = {
 	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}  // U+007F
 };
 
-void display_init(void)
+void i2c_display_init(void)
 {
-	if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
-	{
-		uint8_t init_seq[] = {
-			I2C_CONTROL_BYTE_CMD_STREAM,
-			0xAE, // Turn display off
-			0xDC, // Set display start line
-			0x00, // ...value
-			0x81, // Set display contrast
-			0x2F, // ...value
-			0x20, // Set memory mode
-			0xA0, // Non-rotated display
-			0xC0, // Non-flipped vertical
-			0xA8, // Set multiplex ratio
-			0x7F, // ...value
-			0xD3, // Set display offset to zero
-			0x60, // ...value
-			0xD5, // Set display clock divider
-			0x51, // ...value
-			0xD9, // Set pre-charge
-			0x22, // ...value
-			0xDB, // Set com detect
-			0x35, // ...value
-			0xB0, // Set page address
-			0xDA, // Set com pins
-			0x12, // ...value
-			0xA4, // output ram to display
-			0xA6, // Non-inverted display
-			// 0xA7,	// Inverted display
-			0xAF, // Turn display on
-		};
+	const uint8_t init_seq[] = {
+		I2C_CONTROL_BYTE_CMD_STREAM,
+		0xAE, // Turn display off
+		0xDC, // Set display start line
+		0x00, // ...value
+		0x81, // Set display contrast
+		0x2F, // ...value
+		0x20, // Set memory mode
+		0xA0, // Non-rotated display
+		0xC0, // Non-flipped vertical
+		0xA8, // Set multiplex ratio
+		0x7F, // ...value
+		0xD3, // Set display offset to zero
+		0x60, // ...value
+		0xD5, // Set display clock divider
+		0x51, // ...value
+		0xD9, // Set pre-charge
+		0x22, // ...value
+		0xDB, // Set com detect
+		0x35, // ...value
+		0xB0, // Set page address
+		0xDA, // Set com pins
+		0x12, // ...value
+		0xA4, // output ram to display
+		0xA6, // Non-inverted display
+		// 0xA7,	// Inverted display
+		0xAF, // Turn display on
+	};
 
-		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, init_seq, sizeof(init_seq), 2));
-
-		xSemaphoreGive(g_i2c_mutex);
-	}
-	else
-	{
-		ESP_LOGE("", "OLED FAILED TO ACQ MUTEX");
-	}
+	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, init_seq, sizeof(init_seq), 2));
 }
 
-static uint8_t tx_buffer[4096];
-
-void display_image(int page, int seg, uint8_t *images, int width)
+void i2c_display_image(int page, int seg, uint8_t *images, int width)
 {
 	if(page >= HEIGHT / 8) ESP_LOGE("", "page >= HEIGHT / 8");
 	if(seg >= WIDTH) ESP_LOGE("", "seg >= WIDTH");
 
 	if(width > sizeof(tx_buffer)) ESP_LOGE("", "width > sizeof(tx_buffer)");
 
-	if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
-	{
-		uint8_t columLow = seg & 0x0F;
-		uint8_t columHigh = (seg >> 4) & 0x0F;
+	uint8_t columLow = seg & 0x0F;
+	uint8_t columHigh = (seg >> 4) & 0x0F;
 
-		uint8_t adr_set[4] = {
-			I2C_CONTROL_BYTE_CMD_STREAM,
-			(0x10 + columHigh), // Set Higher Column Start Address for Page Addressing Mode
-			(0x00 + columLow),	// Set Lower Column Start Address for Page Addressing Mode
-			0xB0 | page,		// Set Page Start Address for Page Addressing Mode
-		};
+	uint8_t adr_set[4] = {
+		I2C_CONTROL_BYTE_CMD_STREAM,
+		(0x10 + columHigh), // Set Higher Column Start Address for Page Addressing Mode
+		(0x00 + columLow),	// Set Lower Column Start Address for Page Addressing Mode
+		0xB0 | page,		// Set Page Start Address for Page Addressing Mode
+	};
 
-		tx_buffer[0] = I2C_CONTROL_BYTE_DATA_STREAM;
-		memcpy(&tx_buffer[1], images, width);
+	tx_buffer[0] = I2C_CONTROL_BYTE_DATA_STREAM;
+	memcpy(&tx_buffer[1], images, width);
 
-		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, adr_set, sizeof(adr_set), 2));
-		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, tx_buffer, 1 + width, 2));
-
-		xSemaphoreGive(g_i2c_mutex);
-	}
-	else
-	{
-		ESP_LOGE("", "OLED FAILED TO ACQ MUTEX");
-	}
+	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, adr_set, sizeof(adr_set), 2));
+	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, tx_buffer, 1 + width, 2));
 }
 
-void display_contrast(uint8_t contrast)
+void i2c_display_contrast(uint8_t contrast)
 {
-	if(xSemaphoreTake(g_i2c_mutex, portMAX_DELAY))
-	{
-		uint8_t contrast_set[3] = {
-			I2C_CONTROL_BYTE_CMD_STREAM,
-			0x81, // Set Contrast Control Register
-			contrast,
-		};
-		ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, contrast_set, sizeof(contrast_set), 2));
-
-		xSemaphoreGive(g_i2c_mutex);
-	}
-	else
-	{
-		ESP_LOGE("", "OLED FAILED TO ACQ MUTEX");
-	}
+	uint8_t contrast_set[3] = {
+		I2C_CONTROL_BYTE_CMD_STREAM,
+		0x81, // Set Contrast Control Register
+		contrast,
+	};
+	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, contrast_set, sizeof(contrast_set), 2));
 }
 
-void display_show_buffer(void)
+void i2c_display_show_buffer(void)
 {
 	for(int page = 0; page < _pages; page++)
 	{
-		display_image(page, 0, disp_buf[page], WIDTH);
+		i2c_display_image(page, 0, disp_buf[page], WIDTH);
 	}
 }
 
-void display_set_buffer(uint8_t *buffer)
+void i2c_display_set_buffer(uint8_t *buffer)
 {
 	int index = 0;
 	for(int page = 0; page < _pages; page++)
@@ -295,7 +266,7 @@ void display_set_buffer(uint8_t *buffer)
 	}
 }
 
-void display_get_buffer(uint8_t *buffer)
+void i2c_display_get_buffer(uint8_t *buffer)
 {
 	int index = 0;
 	for(int page = 0; page < _pages; page++)
@@ -305,13 +276,13 @@ void display_get_buffer(uint8_t *buffer)
 	}
 }
 
-void display_display_image(int page, int seg, uint8_t *images, int width)
+void i2c_display_display_image(int page, int seg, uint8_t *images, int width)
 {
-	display_image(page, seg, images, width);
+	i2c_display_image(page, seg, images, width);
 	memcpy(&disp_buf[page][seg], images, width);
 }
 
-void display_display_text(int row, int col, char *text, int text_len, bool invert)
+void i2c_display_display_text(int row, int col, char *text, int text_len, bool invert)
 {
 	int _length = text_len;
 	int w = 0;
@@ -373,31 +344,31 @@ void display_display_text(int row, int col, char *text, int text_len, bool inver
 	for(int i = 0; i < _length; i++)
 	{
 		memcpy(image, font8x8_basic_tr[(uint8_t)text[i]], 8);
-		if(invert) display_invert(image, 8);
-		display_rotate_image(image, _direction);
-		display_display_image(_row, _col, image, 8);
+		if(invert) i2c_display_invert(image, 8);
+		i2c_display_rotate_image(image, _direction);
+		i2c_display_display_image(_row, _col, image, 8);
 		_row = _row + _rowadd;
 		_col = _col + _coladd;
 	}
 }
 
-void display_clear_screen(bool invert)
+void i2c_display_clear_screen(bool invert)
 {
 	uint8_t zero[64];
 	memset(zero, invert ? 0xff : 0, sizeof(zero));
 	for(int page = 0; page < _pages; page++)
 	{
 		memcpy(&disp_buf[page][0], zero, 64);
-		display_image(page, 0, zero, WIDTH);
+		i2c_display_image(page, 0, zero, WIDTH);
 	}
 }
 
-void display_clear(void)
+void i2c_display_clear(void)
 {
 	memset(disp_buf, 0, sizeof(disp_buf));
 }
 
-void display_clear_line(int row, bool invert)
+void i2c_display_clear_line(int row, bool invert)
 {
 	char space[1];
 	space[0] = 0x20;
@@ -405,14 +376,14 @@ void display_clear_line(int row, bool invert)
 	{
 		for(int col = 0; col < WIDTH / 8; col++)
 		{
-			display_display_text(row, col, space, 1, invert);
+			i2c_display_display_text(row, col, space, 1, invert);
 		}
 	}
 	else
 	{
 		for(int col = 0; col < HEIGHT / 8; col++)
 		{
-			display_display_text(row, col, space, 1, invert);
+			i2c_display_display_text(row, col, space, 1, invert);
 		}
 	}
 }
@@ -420,7 +391,7 @@ void display_clear_line(int row, bool invert)
 // delay = 0 : display with no wait
 // delay > 0 : display with wait
 // delay < 0 : no display
-void display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, int8_t delay)
+void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, int8_t delay)
 {
 	if(scroll == SCROLL_RIGHT)
 	{
@@ -562,13 +533,13 @@ void display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, int8_
 	{
 		for(int page = 0; page < _pages; page++)
 		{
-			display_image(page, 0, disp_buf[page], 64);
+			i2c_display_image(page, 0, disp_buf[page], 64);
 			if(delay) vTaskDelay(delay);
 		}
 	}
 }
 
-void display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height, bool invert)
+void i2c_display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height, bool invert)
 {
 	if((width % 8) != 0)
 	{
@@ -592,7 +563,7 @@ void display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height,
 		{
 			// wk0 = disp_buf[page][_seg];
 			wk1 = bitmap[index + offset];
-			wk1 = display_rotate_byte(wk1);
+			wk1 = i2c_display_rotate_byte(wk1);
 			if(invert) wk1 = ~wk1;
 			disp_buf[page][_seg] = wk1;
 			page++;
@@ -602,10 +573,10 @@ void display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height,
 		_seg--;
 	}
 
-	display_show_buffer();
+	i2c_display_show_buffer();
 }
 
-void display_invert(uint8_t *buf, size_t blen)
+void i2c_display_invert(uint8_t *buf, size_t blen)
 {
 	uint8_t wk;
 	for(int i = 0; i < blen; i++)
@@ -640,7 +611,7 @@ uint8_t display_copy_bit(uint8_t src, int srcBits, uint8_t dst, int dstBits)
 
 // Rotate 8-bit data
 // 0x12-->0x48
-uint8_t display_rotate_byte(uint8_t ch1)
+uint8_t i2c_display_rotate_byte(uint8_t ch1)
 {
 	uint8_t ch2 = 0;
 	for(int j = 0; j < 8; j++)
@@ -651,7 +622,7 @@ uint8_t display_rotate_byte(uint8_t ch1)
 	return ch2;
 }
 
-void display_rotate_image(uint8_t *buf, int dir)
+void i2c_display_rotate_image(uint8_t *buf, int dir)
 {
 	uint8_t wk[8];
 	if(dir == DIRECTION0) return;
@@ -689,7 +660,7 @@ void display_rotate_image(uint8_t *buf, int dir)
 			}
 			else
 			{
-				buf[i] = display_rotate_byte(wk2[7 - i]);
+				buf[i] = i2c_display_rotate_byte(wk2[7 - i]);
 			}
 		}
 	}
@@ -697,12 +668,12 @@ void display_rotate_image(uint8_t *buf, int dir)
 	{
 		for(int i = 0; i < 8; i++)
 		{
-			buf[i] = display_rotate_byte(wk[7 - i]);
+			buf[i] = i2c_display_rotate_byte(wk[7 - i]);
 		}
 	}
 }
 
-void display_fadeout(void)
+void i2c_display_fadeout(void)
 {
 	uint8_t image[1];
 	for(int page = 0; page < _pages; page++)
@@ -713,10 +684,10 @@ void display_fadeout(void)
 			image[0] = image[0] << 1;
 			for(int seg = 0; seg < WIDTH; seg++)
 			{
-				display_image(page, seg, image, 1);
+				i2c_display_image(page, seg, image, 1);
 			}
 		}
 	}
 }
 
-void display_direction(int _d) { _direction = _d; }
+void i2c_display_direction(int _d) { _direction = _d; }

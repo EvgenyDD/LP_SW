@@ -8,6 +8,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "ilda.h"
 #include "spi_master_nodma.h"
 #include <stdatomic.h>
 #include <stdio.h>
@@ -30,6 +31,8 @@ volatile uint32_t gs_pnt_cnt[1] = {1};
 volatile uint32_t gs_pnt_cur[1] = {0};
 
 volatile uint16_t daq_presets[6 * 6] = {0};
+
+volatile uint8_t default_frame[sizeof(ilda_frame_h_t) + 1 * sizeof(ilda_point_t)];
 
 void lp_init(void)
 {
@@ -113,37 +116,31 @@ void lp_init(void)
 	}
 
 	memset((void *)daq_presets, 0, sizeof(daq_presets));
+
 	for(uint32_t i = 0; i < 6; i++)
 	{
 		daq_presets[i * 6] = 1000;
 	}
 
-#define p_l 2048 - 0 * 100;
-#define p_h 2048 + 0 * 100;
+#define p_l 2048 - 300
+#define p_h 2048 + 300
 
-	daq_presets[6 * 0 + 1] = p_l; // X
-	daq_presets[6 * 0 + 2] = p_l; // Y
+	daq_presets[6 * 0 + 1] = 2048;		   // X
+	daq_presets[6 * 0 + 2] = 2048;		   // Y
+	daq_presets[6 * 1 + 3] = 0 + 0 * 4095; // G
+	daq_presets[6 * 1 + 4] = 0 + 0 * 4095; // B
+	daq_presets[6 * 1 + 5] = 0 + 0 * 4095; // R
 
-	daq_presets[6 * 1 + 1] = p_l; // X
-	daq_presets[6 * 1 + 2] = p_h; // Y
-
-	daq_presets[6 * 2 + 1] = p_h; // X
-	daq_presets[6 * 2 + 2] = p_h; // Y
-
-	daq_presets[6 * 3 + 1] = p_h; // X
-	daq_presets[6 * 3 + 2] = p_l; // Y
-
-	daq_presets[6 * 1 + 3] = 0 + 0 * 4095; // R
-	daq_presets[6 * 1 + 4] = 0 + 0 * 4095; // G
-	daq_presets[6 * 1 + 5] = 0 + 0 * 4095; // B
-
-	// daq_presets[5 * 6] = 400;
-
-	// daq_presets[6 * 1 + 1] = 4095;
-	// daq_presets[6 * 2 + 2] = 4095;
-	// daq_presets[6 * 3 + 3] = 4095;
-	// daq_presets[6 * 4 + 4] = 4095;
-	// daq_presets[6 * 5 + 5] = 4095;
+	memset(default_frame, 0, sizeof(default_frame));
+	ilda_frame_h_t *i_hdr = default_frame;
+	ilda_point_t *i_pnt = &default_frame[sizeof(ilda_header_t)];
+	i_hdr->p_frame_next = NULL;
+	i_hdr->repeat_cnt = 0;
+	i_hdr->point_cnt = 1;
+	i_hdr->point_cur = 0;
+	i_pnt->time_us = 1000;
+	i_pnt->x = 2048;
+	i_pnt->y = 2048;
 
 	// disable unused DAC channel
 	PIN_L(PIN_LDAC);
@@ -162,20 +159,80 @@ void lp_init(void)
 	timer_start(TIMER_GROUP_0, TIMER_0);
 }
 
+// ===============================================================
+// ===============================================================
+// ===============================================================
+// ===============================================================
+// ===============================================================
+
 // QLPE - quick laser projector engine
 
-bool lsr_q_is_circular = false;
-void *frame_first = NULL;
-void *frame_current = NULL; // used by QLPE
-void *frame_next = NULL;	// used by QLPE
+void *frame_first = NULL; // to clear queue
+void *frame_current = NULL;
 void *frame_pending = NULL;
-uint32_t frame_count = 0; // including preparation frames
 
 enum
 {
 	LP_NO_MEM = 1,
 	LP_FRAME_NOT_CREATED,
 };
+
+void lp_square(uint8_t color)
+{
+	// daq_presets[6 * 0 + 1] = 0; // X
+	// daq_presets[6 * 0 + 2] = 0; // Y
+
+	// daq_presets[6 * 1 + 1] = 0;	   // X
+	// daq_presets[6 * 1 + 2] = 4095; // Y
+
+	// daq_presets[6 * 2 + 1] = 4095; // X
+	// daq_presets[6 * 2 + 2] = 4095; // Y
+
+	// daq_presets[6 * 3 + 1] = 4095; // X
+	// daq_presets[6 * 3 + 2] = 0;	   // Y
+
+#define VVV 1600
+
+#define pos_l_x 2048 - VVV * 2 / 3
+#define pos_h_x 2048 + VVV * 2 / 3
+
+#define pos_l_y 2048 - VVV
+#define pos_h_y 2048 + VVV
+
+	daq_presets[6 * 0 + 1] = pos_l_x; // X
+	daq_presets[6 * 0 + 2] = pos_l_y; // Y
+
+	daq_presets[6 * 1 + 1] = pos_l_x; // X
+	daq_presets[6 * 1 + 2] = pos_h_y; // Y
+
+	daq_presets[6 * 2 + 1] = pos_h_x; // X
+	daq_presets[6 * 2 + 2] = pos_h_y; // Y
+
+	daq_presets[6 * 3 + 1] = pos_h_x; // X
+	daq_presets[6 * 3 + 2] = pos_l_y; // Y
+
+#define LVL 300
+	for(uint32_t frm = 0; frm < 4; frm++)
+	{
+		daq_presets[6 * frm + CLR_R] = (color == CLR_R || color == CLR_WHT) ? 600 : 0; // R
+		daq_presets[6 * frm + CLR_G] = (color == CLR_G || color == CLR_WHT) ? LVL : 0; // G
+		daq_presets[6 * frm + CLR_B] = (color == CLR_B || color == CLR_WHT) ? LVL : 0; // B
+		daq_presets[6 * frm] = 10000;
+	}
+	gs_pnt_cnt[0] = 4;
+}
+
+void lp_blank(void)
+{
+	memset((void *)daq_presets, 0, sizeof(daq_presets));
+	daq_presets[6 * 0 + 1] = 2048; // X
+	daq_presets[6 * 0 + 2] = 2048; // Y
+	for(uint32_t i = 0; i < 6; i++)
+	{
+		daq_presets[i * 6] = 8000;
+	}
+	gs_pnt_cnt[0] = 1;
+}
 
 void lsr_q_clear(void)
 {
@@ -195,10 +252,7 @@ void lsr_q_clear(void)
 	}
 
 	frame_first = NULL;
-	frame_next = NULL;
 	frame_pending = NULL;
-	lsr_q_is_circular = false;
-	frame_count = 0;
 }
 
 int lsr_q_reserve_frame(uint32_t point_count)
@@ -206,7 +260,6 @@ int lsr_q_reserve_frame(uint32_t point_count)
 	// frame_pending = malloc(sizeof(lframe_header_t) + point_count * sizeof(ilda_point_t));
 	// if(!frame_pending) return LP_NO_MEM;
 
-	// frame_count++;
 	return 0;
 }
 
@@ -221,12 +274,10 @@ int lsr_q_add_frame(void) // finalizes the preparation frame
 {
 	if(frame_pending == NULL) return LP_FRAME_NOT_CREATED;
 
-	frame_next = frame_pending;
+	// frame_next = frame_pending;
 	frame_pending = NULL;
 
 	if(!frame_current) frame_current = frame_pending; // this will start the scan
 
 	return 0;
 }
-
-void lsr_q_set_circular(bool state) { lsr_q_is_circular = state; }
