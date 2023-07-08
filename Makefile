@@ -8,3 +8,6 @@ listing: $(LISTING)
 
 $(LISTING): $(APP_ELF)
 	$(OBJDUMP) -d -t -S $< >$(@)
+
+html:
+	make -C main/web/page

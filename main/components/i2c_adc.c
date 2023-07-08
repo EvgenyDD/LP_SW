@@ -11,11 +11,9 @@
 #define NTC_RES_LO_SIDE(adc_val) ((adc_val * 10000.0f) / (5405 /* vref 2.5 pullup 3.3 */ - adc_val))
 #define NTC_TEMP_LO_SIDE(adc_raw, coef) (1.0f / ((logf_fast(NTC_RES_LO_SIDE(adc_raw) / 10000.0f) / coef) + (1.0 / 298.15f)) - 273.15f)
 
-static const uint8_t ch_lookup[8] = {0, 4, 1, 5, 2, 6, 3, 7};
+adc_acq_t adc_val = {0};
 
-uint16_t t_lsr_head = 0, t_drv = 0, t_inv_p = 0, t_inv_n = 0; // in 0.1 Celcium
-uint16_t v_p = 0, v_n = 0, v_i = 0;							  // in mV
-uint16_t i_p = 0;											  // in mA
+static const uint8_t ch_lookup[8] = {0, 4, 1, 5, 2, 6, 3, 7};
 
 static void i2c_w_b(uint8_t value)
 {
@@ -98,19 +96,19 @@ void i2c_adc_read(void)
 	// CURRENT sensor
 	// ina180a2
 	// 0.04198936409*x+0.4741118019 (W) [172W max]
-	i_p = read_channel(0) * 17443 / 10000; // 1.7442874585731727; // 2.5 / (4095 * 50 * 0.007) * 1000.0
+	adc_val.i_p = read_channel(0) * 17443 / 10000; // 1.7442874585731727; // 2.5 / (4095 * 50 * 0.007) * 1000.0
 
 	// 4.14612523+0.01133214557*x+(-1.176550817E-6)*x^2 -> -24V
 	int ch = read_channel(1);
-	v_n = ch * ch * -12 / 10000 + ch * 1133 / 100 + 4146;
+	adc_val.v_n = ch * ch * -12 / 10000 + ch * 1133 / 100 + 4146;
 
 	// 0.0105615645*x-0.01300610299 -> U meters
-	v_p = read_channel(2) * 1056 / 100;
-	v_i = read_channel(3) * 1056 / 100;
+	adc_val.v_p = read_channel(2) * 1056 / 100;
+	adc_val.v_i = read_channel(3) * 1056 / 100;
 
 	// thermistors: B25/50=3380K 10k NTCM-HP-10K-1% SR PASSIVES
-	t_drv = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(4), NTC_COEF));
-	t_lsr_head = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(5), NTC_COEF));
-	t_inv_p = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(6), NTC_COEF));
-	t_inv_n = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(7), NTC_COEF));
+	adc_val.t_drv = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(4), NTC_COEF));
+	adc_val.t_lsr_head = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(5), NTC_COEF));
+	adc_val.t_inv_p = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(6), NTC_COEF));
+	adc_val.t_inv_n = (uint16_t)(10.0 * NTC_TEMP_LO_SIDE(read_channel(7), NTC_COEF));
 }

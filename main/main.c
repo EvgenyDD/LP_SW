@@ -1,27 +1,24 @@
+#include "components/fan.h"
+#include "components/i2c_accel.h"
+#include "components/i2c_adc.h"
+#include "components/i2c_display.h"
+#include "components/i2c_exp.h"
+#include "components/i2c_fram.h"
 #include "driver/gpio.h"
-#include "esp32/clk.h"
-#include "esp32/pm.h"
-#include "esp_err.h"
-#include "esp_eth.h"
-#include "esp_event.h"
 #include "esp_log.h"
-#include "esp_pm.h"
-#include "fan.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "hal/emac_hal.h"
-#include "hal/emac_ll.h"
 #include "hal/gpio_hal.h"
 #include "hw.h"
-#include "i2c_accel.h"
-#include "i2c_adc.h"
-#include "i2c_display.h"
-#include "i2c_exp.h"
-#include "i2c_fram.h"
 #include "lp.h"
+#include "safety.h"
 #include "sd_card.h"
 #include "sdkconfig.h"
-#include "tcpip_adapter.h"
+#include "ui.h"
+#include "web/lan.h"
+#include "web/web_common.h"
+#include "web/wifi.h"
+#include "web/ws.h"
 #include <stdatomic.h>
 #include <string.h>
 
@@ -33,54 +30,13 @@ extern volatile uint32_t gs_pnt_cnt[1];
 // 74LVCU04AD,112 NXPERIA
 // 74LVC161D,112 NXPERIA
 
-static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-	uint8_t mac_addr[6] = {1, 1};
-	esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
-
-	switch(event_id)
-	{
-	case ETHERNET_EVENT_CONNECTED:
-		esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
-		ESP_LOGI("", "Ethernet Link Up");
-		ESP_LOGI("", "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-		break;
-	case ETHERNET_EVENT_DISCONNECTED: ESP_LOGI("", "Ethernet Link Down"); break;
-	case ETHERNET_EVENT_START: ESP_LOGI("", "Ethernet Started"); break;
-	case ETHERNET_EVENT_STOP: ESP_LOGI("", "Ethernet Stopped"); break;
-	default:
-		break;
-	}
-}
-
-static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
-								 int32_t event_id, void *event_data)
-{
-	ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-	const tcpip_adapter_ip_info_t *ip_info = &event->ip_info;
-
-	ESP_LOGI("", "Ethernet Got IP Address");
-	ESP_LOGI("", "~~~~~~~~~~~");
-	ESP_LOGI("", "ETHIP:" IPSTR, IP2STR(&ip_info->ip));
-	ESP_LOGI("", "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
-	ESP_LOGI("", "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
-	ESP_LOGI("", "~~~~~~~~~~~");
-}
-
-char buffer[128];
-
 extern void lp_init(void);
 
-int32_t PPSCount_ASM[2];
 extern volatile uint16_t daq_presets[];
-
-// volatile uint32_t gs_pnt_cnt;
-// volatile uint32_t gs_pnt_cur;
 
 #include "soc/timer_group_reg.h"
 
-static void display_task(void *pvParameter)
-{
+#if 0
 	i2c_display_contrast(10);
 	while(1)
 	{
@@ -101,7 +57,7 @@ static void display_task(void *pvParameter)
 		// sprintf(buffer, "B: %02d ", btn);
 		// i2c_display_display_text(12, 0, buffer, strlen(buffer), false);
 
-		static uint32_t flagOn = 0, btn_was_presed = 0, ch = 5, duty = 1000;
+		static uint32_t ch = 5, duty = 1000;
 
 		// if(gpio_ll_get_level(&GPIO, 34) == 0)
 		// {
@@ -214,67 +170,34 @@ static void display_task(void *pvParameter)
 			}
 #endif
 	}
-}
+#endif
 
 void app_main(void)
 {
-	esp_pm_config_esp32_t pm_config = {
-		.max_freq_mhz = 240,
-		.min_freq_mhz = 240,
-		.light_sleep_enable = false};
-	ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
-
 	ESP_LOGI("", "Running on core: %d\n", xPortGetCoreID());
 
-	fan_init();
 	hw_init();
 
-	tcpip_adapter_init();
+	fan_init();
+	safety_init();
 
 	i2c_accel_init();
 	i2c_adc_init();
 	i2c_exp_init();
 
-	i2c_display_init();
-	i2c_display_direction(DIRECTION180);
-	i2c_display_clear_screen(0);
+	ui_init();
+#if 1
+	web_common_init();
+	lan_init();
+	wifi_init();
+	ws_init();
+#endif
 
-	ESP_ERROR_CHECK(esp_event_loop_create_default());
-	ESP_ERROR_CHECK(tcpip_adapter_set_default_eth_handlers());
-	ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
-	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
-
-	eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
-	mac_config.smi_mdc_gpio_num = 23;
-	mac_config.smi_mdio_gpio_num = 18;
-	eth_phy_config_t phy_config = {
-		.phy_addr = ESP_ETH_PHY_ADDR_AUTO,
-		.reset_timeout_ms = 100,
-		.autonego_timeout_ms = /*4000*/ 100,
-		.reset_gpio_num = -1,
-	};
-	phy_config.phy_addr = 0;
-	vTaskDelay(pdMS_TO_TICKS(1));
-
-	esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
-	esp_eth_phy_t *phy = esp_eth_phy_new_lan8720(&phy_config);
-	esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
-	esp_eth_handle_t eth_handle = NULL;
-	ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
-
-	ESP_ERROR_CHECK(esp_eth_start(eth_handle));
-
-	// #if 1
-	// #ifndef CONFIG_FREERTOS_UNICORE
-	// 	xTaskCreatePinnedToCore(display_task, "display_task", 8000, NULL, 1, NULL, 1);
-	// #else
-	// 	xTaskCreate(display_task, "display_task", 8000, NULL, 1, NULL);
-	// #endif
-	// #endif
+	sd_card_mount();
 
 	lp_init();
 
-	// sd_card_init();
+	sd_card_test();
 
 	vTaskDelay(5);
 
@@ -294,11 +217,19 @@ void app_main(void)
 
 	ESP_LOGI("HEAP", "Free heap: %d", xPortGetFreeHeapSize());
 
+	uint32_t prev_systick = esp_log_timestamp();
 	while(1)
 	{
+		const uint32_t systick_now = esp_log_timestamp();
+		uint32_t diff_ms = systick_now - prev_systick;
+		prev_systick = systick_now;
+
+		safety_loop();
+
 		i2c_adc_read();
 		buttons_read(1); // todo debounce
-		i2c_accel_read();
+
+		ui_loop(0, diff_ms);
 
 		{
 			// do
@@ -318,76 +249,39 @@ void app_main(void)
 			// }
 		}
 
-		static uint32_t fan_spd = 800;
-		if(btn_j_l.pressed_shot)
-		{
-			fan_spd -= 10;
-			fan_set_level(fan_spd);
-		}
-		else if(btn_j_r.pressed_shot)
-		{
-			fan_spd += 10;
-			fan_set_level(fan_spd);
-		}
+		// static uint32_t fan_spd = 800;
+		// if(btn_j_l.pressed_shot)
+		// {
+		// 	fan_spd -= 10;
+		// 	fan_set_level(fan_spd);
+		// }
+		// else if(btn_j_r.pressed_shot)
+		// {
+		// 	fan_spd += 10;
+		// 	fan_set_level(fan_spd);
+		// }
 
-		static uint8_t colr = CLR_R;
-		if(btn_j_l.pressed_shot)
-		{
-			if(--colr < CLR_NULL) colr = CLR_WHT;
-		}
-		else if(btn_j_r.pressed_shot)
-		{
-			if(++colr > CLR_WHT) colr = CLR_NULL;
-		}
+		// static uint8_t colr = CLR_R;
+		// if(btn_j_l.pressed_shot)
+		// {
+		// 	if(--colr < CLR_NULL) colr = CLR_WHT;
+		// }
+		// else if(btn_j_r.pressed_shot)
+		// {
+		// 	if(++colr > CLR_WHT) colr = CLR_NULL;
+		// }
 
-		static bool xc = false;
-		if(btn_j_press.pressed_shot)
-		{
-			xc = true;
-			lp_square(colr);
-		}
-		if(btn_j_press.unpressed_shot)
-		{
-			xc = false;
-			lp_blank();
-		}
-
-		static uint32_t upd_tmr = 0;
-		if(upd_tmr == 0)
-		{
-			upd_tmr = 5;
-			{
-				// i2c_display_clear_screen(0);
-				i2c_display_clear();
-
-				sprintf(buffer, "%d.%02dA ", i_p / 1000, (i_p % 1000) / 10);
-				i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
-
-				sprintf(buffer, "%d.%01dV ", v_p / 1000, (v_p % 1000) / 100);
-				i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
-
-				sprintf(buffer, "%-d.%01dV ", v_n / 1000, (v_n % 1000) / 100);
-				i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
-
-				sprintf(buffer, "%d.%01dV ", v_i / 1000, (v_i % 1000) / 100);
-				i2c_display_display_text(3, 0, buffer, strlen(buffer), false);
-
-				sprintf(buffer, "%d %d", t_drv / 10, t_lsr_head / 10);
-				i2c_display_display_text(4, 0, buffer, strlen(buffer), false);
-
-				sprintf(buffer, "%d %d", t_inv_p / 10, t_inv_n / 10);
-				i2c_display_display_text(5, 0, buffer, strlen(buffer), false);
-
-				int W = v_p * i_p / 1000;
-				sprintf(buffer, "%d.%01dW ", W / 1000, (W % 1000) / 100);
-				i2c_display_display_text(7, 0, buffer, strlen(buffer), false);
-
-				sprintf(buffer, "%s %s  ", clr_to_str(colr), xc ? "ON" : "OFF");
-				i2c_display_display_text(9, 0, buffer, strlen(buffer), false);
-			}
-		}
-		else
-			upd_tmr--;
+		// static bool xc = false;
+		// if(btn_j_press.pressed_shot)
+		// {
+		// 	xc = true;
+		// 	// lp_square(colr);
+		// }
+		// if(btn_j_press.unpressed_shot)
+		// {
+		// 	xc = false;
+		// 	lp_blank();
+		// }
 
 		// if(pos_fix_failure)
 		// {

@@ -57,3 +57,5 @@ debug.log
 build/*
 
 .vscode/*
+node_modules/
+package-lock.json

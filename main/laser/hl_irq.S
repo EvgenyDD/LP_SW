@@ -31,7 +31,7 @@
 
 .data
 _l5_intr_stack:
-    .space      40
+    .space      44
 
 .macro delay_cycles delay
     movi.n  RC, \delay

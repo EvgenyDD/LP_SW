@@ -32,7 +32,7 @@ volatile uint32_t gs_pnt_cur[1] = {0};
 
 volatile uint16_t daq_presets[6 * 6] = {0};
 
-volatile uint8_t default_frame[sizeof(ilda_frame_h_t) + 1 * sizeof(ilda_point_t)];
+volatile uint8_t default_frame[sizeof(lp_frame_h_t) + 1 * sizeof(lp_point_t)];
 
 void lp_init(void)
 {
@@ -86,20 +86,20 @@ void lp_init(void)
 	timer_enable_intr(TIMER_GROUP_0, TIMER_0);
 	ESP_ERROR_CHECK(timer_isr_register(TIMER_GROUP_0, TIMER_0, NULL, NULL, ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL5, NULL));
 
-	timer_config_t config_rt = {
-		.alarm_en = true,
-		.counter_en = false,
-		.intr_type = TIMER_INTR_LEVEL,
-		.counter_dir = TIMER_COUNT_UP,
-		.auto_reload = true,
-		.divider = 2, // Set prescaler for 40 MHz clock
-	};
+	// timer_config_t config_rt = {
+	// 	.alarm_en = true,
+	// 	.counter_en = false,
+	// 	.intr_type = TIMER_INTR_LEVEL,
+	// 	.counter_dir = TIMER_COUNT_UP,
+	// 	.auto_reload = true,
+	// 	.divider = 2, // Set prescaler for 40 MHz clock
+	// };
 
-	timer_init(TIMER_GROUP_0, 1, &config_rt);
-	timer_set_counter_value(TIMER_GROUP_0, 1, 0);
-	timer_set_alarm_value(TIMER_GROUP_0, 1, 5000000);
-	timer_enable_intr(TIMER_GROUP_0, 1);
-	timer_start(TIMER_GROUP_0, 1);
+	// timer_init(TIMER_GROUP_0, 1, &config_rt);
+	// timer_set_counter_value(TIMER_GROUP_0, 1, 0);
+	// timer_set_alarm_value(TIMER_GROUP_0, 1, 5000000);
+	// timer_enable_intr(TIMER_GROUP_0, 1);
+	// timer_start(TIMER_GROUP_0, 1);
 
 	DAC_SPI.user.usr_mosi_highpart = 0;
 	DAC_SPI.mosi_dlen.usr_mosi_dbitlen = 16 - 1;
@@ -131,9 +131,9 @@ void lp_init(void)
 	daq_presets[6 * 1 + 4] = 0 + 0 * 4095; // B
 	daq_presets[6 * 1 + 5] = 0 + 0 * 4095; // R
 
-	memset(default_frame, 0, sizeof(default_frame));
-	ilda_frame_h_t *i_hdr = default_frame;
-	ilda_point_t *i_pnt = &default_frame[sizeof(ilda_header_t)];
+	memset((void *)default_frame, 0, sizeof(default_frame));
+	lp_frame_h_t *i_hdr = (lp_frame_h_t *)default_frame;
+	lp_point_t *i_pnt = (lp_point_t *)&default_frame[sizeof(ilda_header_t)];
 	i_hdr->p_frame_next = NULL;
 	i_hdr->repeat_cnt = 0;
 	i_hdr->point_cnt = 1;
@@ -165,11 +165,11 @@ void lp_init(void)
 // ===============================================================
 // ===============================================================
 
-// QLPE - quick laser projector engine
+// LPRT - laser projector realtime loop
 
 void *frame_first = NULL; // to clear queue
-void *frame_current = NULL;
-void *frame_pending = NULL;
+void volatile *frame_current = NULL;
+void *frame_edit = NULL;
 
 enum
 {
@@ -236,7 +236,7 @@ void lp_blank(void)
 
 void lsr_q_clear(void)
 {
-	frame_current = NULL; // this will stop QLPE
+	frame_current = default_frame;
 
 	// clear the queue
 	if(!frame_first)
@@ -248,36 +248,36 @@ void lsr_q_clear(void)
 			free(frame_first);
 			if(!next) break;
 		}
-		if(frame_pending) free(frame_pending); // also delete preparation frames
+		if(frame_edit) free(frame_edit); // also delete preparation frames
 	}
 
 	frame_first = NULL;
-	frame_pending = NULL;
+	frame_edit = NULL;
 }
 
-int lsr_q_reserve_frame(uint32_t point_count)
+int lp_frame_add(uint32_t point_count) // allocate frame buffer
 {
-	// frame_pending = malloc(sizeof(lframe_header_t) + point_count * sizeof(ilda_point_t));
-	// if(!frame_pending) return LP_NO_MEM;
+	// frame_edit = malloc(sizeof(lframe_header_t) + point_count * sizeof(lp_point_t));
+	// if(!frame_edit) return LP_NO_MEM;
 
 	return 0;
 }
 
 int lsr_q_modify_point(uint32_t point)
 {
-	if(frame_pending == NULL) return LP_FRAME_NOT_CREATED;
+	if(frame_edit == NULL) return LP_FRAME_NOT_CREATED;
 
 	return 0;
 }
 
-int lsr_q_add_frame(void) // finalizes the preparation frame
+int lp_frame_append(void) // append frame to the projection queue
 {
-	if(frame_pending == NULL) return LP_FRAME_NOT_CREATED;
+	if(frame_edit == NULL) return LP_FRAME_NOT_CREATED;
 
-	// frame_next = frame_pending;
-	frame_pending = NULL;
+	// frame_next = frame_edit;
+	frame_edit = NULL;
 
-	if(!frame_current) frame_current = frame_pending; // this will start the scan
+	if(!frame_current) frame_current = frame_edit; // this will start the scan
 
 	return 0;
 }

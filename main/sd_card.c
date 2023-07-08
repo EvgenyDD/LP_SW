@@ -7,28 +7,103 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 
+static bool is_sd_mounted = false;
+
+sdmmc_card_t *card;
+
+bool sd_card_mount(void)
+{
+	sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+
+	// To use 1-line SD mode, uncomment the following line:
+	host.flags = SDMMC_HOST_FLAG_1BIT;
+	host.max_freq_khz = SDMMC_FREQ_PROBING;
+
+	// This initializes the slot without card detect (CD) and write protect (WP) signals.
+	// Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
+	sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+
+	// Options for mounting the filesystem.
+	// If format_if_mount_failed is set to true, SD card will be partitioned and formatted
+	// in case when mounting fails.
+	esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+		.format_if_mount_failed = true,
+		.max_files = 5};
+
+	esp_err_t ret = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &card);
+	if(ret != ESP_OK)
+	{
+		is_sd_mounted = false;
+		if(ret == ESP_FAIL)
+			ESP_LOGE("SD", "Failed to mount filesystem. If you want the card to be formatted, set format_if_mount_failed = true.");
+		else
+			ESP_LOGE("SD", "Failed to initialize the card (%d). Make sure SD card lines have pull-up resistors in place.", ret);
+		return true;
+	}
+	ESP_LOGI("SD", "Mount success\n");
+	is_sd_mounted = true;
+
+	return false;
+}
+
+void sd_card_test(void)
+{
+	// ESP_LOGI("SD", "Opening file");
+	// FILE *f = fopen("/sdcard/hello.txt", "w");
+	// if(f == NULL)
+	// {
+	// 	ESP_LOGE("SD", "Failed to open file for writing");
+	// 	return;
+	// }
+	// fprintf(f, "Hello %s!\n", card->cid.name);
+	// fclose(f);
+	// ESP_LOGI("SD", "File written");
+
+	// struct stat st;
+	// if(stat("/sdcard/foo.txt", &st) == 0)
+	// {
+	// 	unlink("/sdcard/foo.txt"); // Delete it if it exists
+	// }
+
+	// ESP_LOGI("SD", "Renaming file");
+	// if(rename("/sdcard/hello.txt", "/sdcard/foo.txt") != 0)
+	// {
+	// 	ESP_LOGE("SD", "Rename failed");
+	// 	return;
+	// }
+
+	ESP_LOGI("SD", "Reading file");
+	FILE *fd = fopen("/sdcard/TEST_30K.ILD", "r");
+	if(fd == NULL)
+	{
+		ESP_LOGE("SD", "Failed to open file for reading");
+		return;
+	}
+	else
+	{
+		ESP_LOGI("SD", "File successful opened");
+	}
+
+	uint8_t buf[256];
+	uint32_t sz = 0;
+	int chunksize;
+	do
+	{
+		chunksize = fread(buf, 1, sizeof(buf), fd);
+
+		if(chunksize > 0)
+		{
+			sz += chunksize;
+		}
+	} while(chunksize != 0);
+
+	ESP_LOGI("SD", "file size: %d\n", sz);
+}
+
 void sd_card_init(void)
 {
 	do
 	{
-		sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-		host.flags = SDMMC_HOST_FLAG_1BIT; // SDMMC_HOST_FLAG_DDR or SDMMC_HOST_FLAG_1BIT
-		host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
-		sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-		slot_config.width = 1;
-		esp_vfs_fat_sdmmc_mount_config_t mount_config = {
-			.format_if_mount_failed = false,
-			.max_files = 5};
-		sdmmc_card_t *card;
-		esp_err_t ret = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &card);
-		if(ret != ESP_OK)
-		{
-			if(ret == ESP_FAIL)
-				ESP_LOGE("SD", "Failed to mount filesystem. If you want the card to be formatted, set format_if_mount_failed = true.");
-			else
-				ESP_LOGE("SD", "Failed to initialize the card (%d). Make sure SD card lines have pull-up resistors in place.", ret);
-			break;
-		}
 
 		sdmmc_card_print_info(stdout, card);
 

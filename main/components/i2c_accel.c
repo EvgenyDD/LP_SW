@@ -1,11 +1,11 @@
 #include "i2c_accel.h"
 #include "driver/i2c.h"
-#include "esp_log.h"
+// #include "esp_log.h"
 #include "esp_rom_gpio.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "hal/emac_hal.h"
+// #include "freertos/task.h"
+// #include "hal/emac_hal.h"
 #include "hal/gpio_hal.h"
 #include <sys/cdefs.h>
 
@@ -44,6 +44,7 @@ void i2c_accel_init(void)
 	write_reg(STK8312_REG_STH, (1 << 6));
 	write_reg(STK8312_REG_MODE, (1 << 0));
 	write_reg(STK8312_REG_SR, 0);
+	read_reg(0);
 	vTaskDelay(1);
 }
 
@@ -56,9 +57,4 @@ void i2c_accel_get_data(uint8_t acc[3])
 	i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, &acc[1], 1, 2);
 	wr = STK8312_REG_Z;
 	i2c_master_write_read_device(0, STK8312_I2C_ADDR, &wr, 1, &acc[2], 1, 2);
-}
-
-void i2c_accel_read(void)
-{
-	
 }
