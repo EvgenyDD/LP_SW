@@ -1,3 +1,4 @@
+#include "cJSON.h"
 #include "esp_eth.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -18,6 +19,8 @@
 #include <esp_wifi.h>
 #include <sys/param.h>
 
+#include "i2c_adc.h"
+
 extern void start_dns_server(void);
 
 extern const char root_start[] asm("_binary_index_html_start");
@@ -35,11 +38,50 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 
 	return ESP_OK;
 }
+ 
+static esp_err_t rtd_get_handler(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, "application/json");
+	cJSON *root = cJSON_CreateObject();
+
+	cJSON_AddNumberToObject(root, "i_p", adc_val.i_p + rand() % 125);
+	cJSON_AddNumberToObject(root, "v_p", adc_val.v_p);
+	cJSON_AddNumberToObject(root, "v_n", adc_val.v_n);
+	cJSON_AddNumberToObject(root, "v_i", adc_val.v_i);
+	cJSON_AddNumberToObject(root, "t_drv", adc_val.t_drv);
+	cJSON_AddNumberToObject(root, "t_inv_p", adc_val.t_inv_p);
+	cJSON_AddNumberToObject(root, "t_inv_n", adc_val.t_inv_n);
+	cJSON_AddNumberToObject(root, "t_lsr", adc_val.t_lsr_head);
+
+	const char *sys_info = cJSON_Print(root);
+	httpd_resp_sendstr(req, sys_info);
+	free((void *)sys_info);
+	cJSON_Delete(root);
+	return ESP_OK;
+}
+
+static esp_err_t cmd_handler(httpd_req_t *req)
+{
+	int total_len = req->content_len;
+	ESP_LOGI("ws", "req: %s (%d)", req->uri, total_len);
+	httpd_resp_sendstr(req, "OK");
+	return ESP_OK;
+}
 
 static const httpd_uri_t root = {
 	.uri = "/",
 	.method = HTTP_GET,
 	.handler = root_get_handler,
+};
+static const httpd_uri_t rtd = {
+	.uri = "/api/rtd",
+	.method = HTTP_GET,
+	.handler = rtd_get_handler,
+};
+static const httpd_uri_t cmd = {
+	.uri = "/api/cmd/*",
+	.method = HTTP_GET,
+	.handler = cmd_handler,
 };
 
 // HTTP Error (404) Handler - Redirects all requests to the root page
@@ -50,7 +92,7 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 	// Redirect to the "/" root directory
 	httpd_resp_set_hdr(req, "Location", "/");
 	// iOS requires content in the response to detect a captive portal, simply redirecting is not sufficient.
-	httpd_resp_send(req, "Redirect to the captive portal", HTTPD_RESP_USE_STRLEN);
+	httpd_resp_send(req, "Redirect to the home", HTTPD_RESP_USE_STRLEN);
 
 	ESP_LOGI(TAG, "Redirecting to root");
 	return ESP_OK;
@@ -81,6 +123,8 @@ void ws_init(void)
 		// Set URI handlers
 		ESP_LOGI(TAG, "Registering URI handlers");
 		httpd_register_uri_handler(server, &root);
+		httpd_register_uri_handler(server, &rtd);
+		httpd_register_uri_handler(server, &cmd);
 		httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
 	}
 	else

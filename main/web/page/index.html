@@ -1,15 +1,252 @@
 <!DOCTYPE html>
 <html>
 
-<script src="index.js"></script>
-
 <head>
-    <title>ESP A0 Portal</title>
+    <meta charset="utf-8">
+    <script src="index.js"></script>
 </head>
 
 <body>
-    <h1>ESP Interesting Portal</h1>
-    <p>Hello World, this is ESP32 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!</p>
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        #pagewrapper {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .contentwrapper {
+            flex-grow: 1;
+        }
+
+        .tab {
+            overflow: hidden;
+            background-color: #4c4c4c;
+            height: 100%;
+        }
+
+        .tabcontent {
+            width: 100%;
+            overflow: hidden;
+        }
+
+        #HLayout {
+            display: flex;
+            height: 100%;
+        }
+
+        #tab_array {
+            height: 100%;
+            display: flex;
+        }
+
+        .navwrapper {
+            width: 100%;
+            position: relative;
+            height: 40px;
+            background: rgb(104, 113, 104);
+        }
+
+        .vertical-center {
+            margin: auto;
+            position: absolute;
+            top: 50%;
+            -ms-transform: translateY(-50%);
+            transform: translateY(-50%);
+            left: 40%;
+        }
+
+
+        .tab button {
+            background-color: #585858;
+            float: left;
+            display: block;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .tab button:hover {
+            background-color: #ddd;
+        }
+
+        .tab button.active {
+            background-color: rgb(151, 151, 151);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0, 0, 0);
+            background-color: rgba(0, 0, 0, 0.4);
+            color: #000;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            height: 60%;
+        }
+
+        .modalClose {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .modalClose:hover,
+        .modalClose:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-group button {
+            background-color: #04AA6D;
+            border: 1px solid green;
+            color: white;
+            padding: 10px 24px;
+            cursor: pointer;
+            width: 100%;
+            display: block;
+        }
+
+        .btn-group button:not(:last-child) {
+            border-bottom: none;
+        }
+
+        .btn-group button:hover {
+            background-color: #3e8e41;
+        }
+    </style>
+    <div id="modalConfig" class="modal">
+        <div class="modal-content">
+            <span class="modalClose">&times;</span>
+            <table border="0" bordercolor="#424242">
+                <tr>
+                    <td>Backend IP:</td>
+                    <td><input id="inputIpBakend"></input></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div id="pagewrapper" style="display: none;">
+        <div class="contentwrapper">
+            <div class="tab">
+                <button class="tablinks" id="btn0" onclick="openTab(event, '1')"><img />Control</button>
+                <button class="tablinks" onclick="openTab(event, '2')"><img />Blockly</button>
+                <button class="tablinks" onclick="openTab(event, '3')"><img />Editor</button>
+                <button class="tablinks" onclick="openTab(event, '4')">/Info/</button>
+                <button class="tablinks" onclick="openSettings()">CFG</button>
+            </div>
+
+            <div id="tab_array">
+                <div id="1" class="tabcontent">
+                    <table id='blocklyBox' style="height: 100%; width: 100%;">
+                        <tbody>
+                            <tr>
+                                <td style="height:100%;background-color:gray;">AAA</td>
+                                <td id="mid_td"
+                                    style="height:100%;width:15%;background:rgb(221, 221, 221);vertical-align: top;">
+                                    <table>
+                                        <tr>
+                                            <td style="background-color: #ddff00">U input</td>
+                                            <td id="rtd_vi"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #a4b538">U invertor</td>
+                                            <td id="rtd_vinv"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #ff0000">I</td>
+                                            <td id="rtd_ip"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #ff00ee64">P</td>
+                                            <td id="rtd_p"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b7ff">T drv</td>
+                                            <td id="rtd_tdrv"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b7ff">T invertor</td>
+                                            <td id="rtd_inv"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b7ff">T laser</td>
+                                            <td id="rtd_lsr"></td>
+                                        </tr>
+                                    </table>
+
+                                    <div class="btn-group">
+                                        <button>B0</button>
+                                        <button>B1</button>
+                                        <button>B2</button>
+                                    </div>
+                                </td>
+                    </table>
+                </div>
+
+                <div id="2" class="tabcontent">
+                    <table id='blocklyBox' style="height: 100%; width: 100%;">
+                        <tbody>
+                            <tr>
+                                <td id="blocklyArea" style="height:100%;background-color:gray;"></td>
+                                <td id="mid_td"
+                                    style="height:100%;width:0.4%;background:rgb(221, 221, 221);cursor:w-resize;display:none;">
+                                </td>
+                                <td id="side_code_parent" width="25%" valign='top'
+                                    style="background-color:rgb(238, 238, 238);display:none;">
+                                    <div id="monacoAreaBL" style="width:100%;height:100%;"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="3" class="tabcontent">
+                    <div id="HLayout">
+                        <div id="filetree_root" style="height: 100%;"></div>
+                        <div id="monacoArea" style="width: 100%;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="4" class="tabcontent">
+                    <div id="messageLog" style="height: 90vh; overflow:scroll; color:black;"></div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="navwrapper">
+            <div class="vertical-center">
+                <input type="range" min="1" max="100" value="50" class="slider">
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

@@ -16,8 +16,4 @@ typedef struct
 
 extern adc_acq_t adc_val;
 
-extern uint16_t t_lsr_head, t_drv, t_inv_p, t_inv_n;
-extern uint16_t v_p, v_n, v_i;
-extern uint16_t i_p;
-
 #endif // I2C_ADC_H__

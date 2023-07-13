@@ -12,9 +12,19 @@ module.exports = {
         new HtmlWebpackPlugin({
             publicPath: '/',
             template: "./index.html",
-            inlineSource: '.(js|css)$'
+            inlineSource: '.(js|css)$',
+            minify: {
+                collapseWhitespace: true,
+                keepClosingSlash: true,
+                removeComments: true,
+                removeRedundantAttributes: true,
+                removeScriptTypeAttributes: true,
+                removeStyleLinkTypeAttributes: true,
+                useShortDoctype: true,
+                minifyCSS: true,
+            },
         }),
-        new HtmlWebpackInlineSourcePlugin(HtmlWebpackPlugin)
+        new HtmlWebpackInlineSourcePlugin(HtmlWebpackPlugin),
     ],
     mode: 'production'
 }

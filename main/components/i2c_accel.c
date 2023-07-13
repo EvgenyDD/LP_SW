@@ -1,12 +1,10 @@
 #include "i2c_accel.h"
 #include "driver/i2c.h"
-// #include "esp_log.h"
 #include "esp_rom_gpio.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
-// #include "hal/emac_hal.h"
 #include "hal/gpio_hal.h"
+#include "lp_config.h"
 #include <sys/cdefs.h>
 
 #define ACCEL_THRS 5
@@ -27,13 +25,13 @@ static void write_reg(uint8_t reg, uint8_t value)
 	uint8_t tx_arr[2];
 	tx_arr[0] = reg;
 	tx_arr[1] = value;
-	ESP_ERROR_CHECK(i2c_master_write_to_device(0, STK8312_I2C_ADDR, tx_arr, 2, 2));
+	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, STK8312_I2C_ADDR, tx_arr, 2, 2));
 }
 
 static uint8_t read_reg(uint8_t reg)
 {
 	uint8_t b;
-	ESP_ERROR_CHECK(i2c_master_write_read_device(0, STK8312_I2C_ADDR, &reg, 1, &b, 1, 2));
+	_ESP_ERROR_CHECK(i2c_master_write_read_device(0, STK8312_I2C_ADDR, &reg, 1, &b, 1, 2));
 	return b;
 }
 

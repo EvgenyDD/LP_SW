@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lp_config.h"
 
 #define I2C_ADS7828_ADDR 0x48
 
@@ -17,13 +18,13 @@ static const uint8_t ch_lookup[8] = {0, 4, 1, 5, 2, 6, 3, 7};
 
 static void i2c_w_b(uint8_t value)
 {
-	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_ADS7828_ADDR, &value, 1, 2));
+	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_ADS7828_ADDR, &value, 1, 2));
 }
 
 static uint16_t i2c_r_2b(void)
 {
 	uint8_t v[2];
-	ESP_ERROR_CHECK(i2c_master_read_from_device(0, I2C_ADS7828_ADDR, v, 2, 2));
+	_ESP_ERROR_CHECK(i2c_master_read_from_device(0, I2C_ADS7828_ADDR, v, 2, 2));
 	return (v[0] << 8) | v[1];
 }
 

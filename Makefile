@@ -11,3 +11,7 @@ $(LISTING): $(APP_ELF)
 
 html:
 	make -C main/web/page
+
+.PHONY: component-html_compiler-build
+component-html_compiler-build:
+	make -C main/web/page

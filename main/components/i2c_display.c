@@ -1,6 +1,7 @@
 #include "i2c_display.h"
 #include "driver/i2c.h"
 #include "esp_log.h"
+#include "lp_config.h"
 #include <string.h>
 
 // https://www.displayfuture.com/Display/datasheet/controller/SH1107.pdf
@@ -211,7 +212,7 @@ void i2c_display_init(void)
 		0xAF, // Turn display on
 	};
 
-	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, init_seq, sizeof(init_seq), 2));
+	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, init_seq, sizeof(init_seq), 2));
 }
 
 void i2c_display_image(int page, int seg, uint8_t *images, int width)
@@ -234,8 +235,8 @@ void i2c_display_image(int page, int seg, uint8_t *images, int width)
 	tx_buffer[0] = I2C_CONTROL_BYTE_DATA_STREAM;
 	memcpy(&tx_buffer[1], images, width);
 
-	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, adr_set, sizeof(adr_set), 2));
-	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, tx_buffer, 1 + width, 2));
+	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, adr_set, sizeof(adr_set), 2));
+	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, tx_buffer, 1 + width, 2));
 }
 
 void i2c_display_contrast(uint8_t contrast)
@@ -245,7 +246,7 @@ void i2c_display_contrast(uint8_t contrast)
 		0x81, // Set Contrast Control Register
 		contrast,
 	};
-	ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, contrast_set, sizeof(contrast_set), 2));
+	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, I2C_SH1107_ADDR, contrast_set, sizeof(contrast_set), 2));
 }
 
 void i2c_display_show_buffer(void)

@@ -5,3 +5,4 @@ all:
 
 modules_install:
 	@npm i --save-dev html-webpack-plugin
+	@npm i html-inline-css-webpack-plugin -D
