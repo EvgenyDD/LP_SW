@@ -21,6 +21,9 @@
 
 #include "i2c_adc.h"
 
+// https://github.com/espressif/esp-idf/blob/master/examples/protocols/http_server/restful_server/main/rest_server.c
+// https://github.com/espressif/esp-idf/blob/master/examples/protocols/http_server/restful_server/README.md
+
 extern void start_dns_server(void);
 
 extern const char root_start[] asm("_binary_index_html_start");
