@@ -2,6 +2,7 @@
 #include "driver/sdmmc_defs.h"
 #include "driver/sdmmc_host.h"
 #include "esp_vfs_fat.h"
+#include "ilda_playground.h"
 #include "sdmmc_cmd.h"
 #include <string.h>
 #include <sys/stat.h>
@@ -48,63 +49,20 @@ bool sd_card_mount(void)
 
 void sd_card_test(void)
 {
-	// ESP_LOGI("SD", "Opening file");
-	// FILE *f = fopen("/sdcard/hello.txt", "w");
-	// if(f == NULL)
-	// {
-	// 	ESP_LOGE("SD", "Failed to open file for writing");
-	// 	return;
-	// }
-	// fprintf(f, "Hello %s!\n", card->cid.name);
-	// fclose(f);
-	// ESP_LOGI("SD", "File written");
+	ESP_LOGI("SD", "Check file start");
+	int sts = ilda_check_file("/sdcard/TEST_12K.ILD");
+	ESP_LOGI("SD", "Check file %d", sts);
 
-	// struct stat st;
-	// if(stat("/sdcard/foo.txt", &st) == 0)
-	// {
-	// 	unlink("/sdcard/foo.txt"); // Delete it if it exists
-	// }
-
-	// ESP_LOGI("SD", "Renaming file");
-	// if(rename("/sdcard/hello.txt", "/sdcard/foo.txt") != 0)
-	// {
-	// 	ESP_LOGE("SD", "Rename failed");
-	// 	return;
-	// }
-
-	ESP_LOGI("SD", "Reading file");
-	FILE *fd = fopen("/sdcard/TEST_30K.ILD", "r");
-	if(fd == NULL)
+	if(sts == 0)
 	{
-		ESP_LOGE("SD", "Failed to open file for reading");
-		return;
+		ilda_file_load("/sdcard/TEST_12K.ILD");
 	}
-	else
-	{
-		ESP_LOGI("SD", "File successful opened");
-	}
-
-	uint8_t buf[256];
-	uint32_t sz = 0;
-	int chunksize;
-	do
-	{
-		chunksize = fread(buf, 1, sizeof(buf), fd);
-
-		if(chunksize > 0)
-		{
-			sz += chunksize;
-		}
-	} while(chunksize != 0);
-
-	ESP_LOGI("SD", "file size: %d\n", sz);
 }
 
 void sd_card_init(void)
 {
 	do
 	{
-
 		sdmmc_card_print_info(stdout, card);
 
 		ESP_LOGI("SD", "Opening file");

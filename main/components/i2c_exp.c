@@ -17,6 +17,8 @@
 #define IO_CFG_EMCY 0xFE // laser voltage OFF
 #define IO_CFG_NRML 0xFF // laser voltage ON
 
+bool voltage_enabled = false;
+
 button_ctrl_t btn_emcy, btn_j_l, btn_j_r, btn_j_press, btn_l, btn_r;
 
 void i2c_exp_init(void)
@@ -36,12 +38,14 @@ void i2c_exp_init(void)
 void lsr_volt_enable(void) // don't forget to set FAN PWM >350
 {
 	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, IO_EXP_I2C_ADDR, (uint8_t[]){REG_CFG, IO_CFG_NRML}, 2, 2));
+	voltage_enabled = true;
 }
 
 void lsr_volt_disable(void)
 {
 	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, IO_EXP_I2C_ADDR, (uint8_t[]){REG_OUT, 0x00}, 2, 2));
 	_ESP_ERROR_CHECK(i2c_master_write_to_device(0, IO_EXP_I2C_ADDR, (uint8_t[]){REG_CFG, IO_CFG_EMCY}, 2, 2));
+	voltage_enabled = false;
 }
 
 void buttons_read(int32_t time_diff)

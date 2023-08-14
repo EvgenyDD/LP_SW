@@ -101,19 +101,21 @@ function getCookie(cname) {
 }
 
 function rt_data_cb(resp) {
-    console.log("resp rcv: " + resp);
+    // console.log("resp rcv: " + resp);
     const obj = JSON.parse(resp);
-    document.getElementById("rtd_vi").innerHTML = obj.v_i + " V";
-    document.getElementById("rtd_vinv").innerHTML = obj.v_p + " / " + obj.v_n + " V";
-    document.getElementById("rtd_ip").innerHTML = obj.i_p + " A";
-    document.getElementById("rtd_p").innerHTML = obj.v_i * obj.i_p + " W";
-    document.getElementById("rtd_tdrv").innerHTML = obj.t_drv + " °C";
-    document.getElementById("rtd_inv").innerHTML = obj.t_inv_p + "/" + obj.t_inv_n + " °C";
-    document.getElementById("rtd_lsr").innerHTML = obj.t_lsr + " °C";
+    document.getElementById("rtd_vi").innerHTML = (obj.v_i * 0.001).toFixed(1) + " V";
+    document.getElementById("rtd_vinv").innerHTML = (obj.v_p * 0.001).toFixed(1) + " / " + (obj.v_n * 0.001).toFixed(1) + " V";
+    document.getElementById("rtd_ip").innerHTML = (obj.i_p * 0.001).toFixed(1) + " A";
+    document.getElementById("rtd_p").innerHTML = (obj.v_i * obj.i_p * 0.000001).toFixed(1) + " W";
+    document.getElementById("rtd_tdrv").innerHTML = (obj.t_drv * .1).toFixed(0) + " °C";
+    document.getElementById("rtd_inv").innerHTML = (obj.t_inv_p * .1).toFixed(0) + "/" + (obj.t_inv_n * .1).toFixed(0) + " °C";
+    document.getElementById("rtd_lsr").innerHTML = (obj.t_lsr * .1).toFixed(0) + " °C";
+    if (obj.hasOwnProperty("console")) {
+        logAppend(obj.console);
+    }
 }
 
 function req_rt_data() {
-    console.log("Requesting...");
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.onreadystatechange = function () {
         if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
@@ -134,13 +136,20 @@ function sendWsMsg() {
     xmlHttp.send(null);
 }
 
+function consoleCmd() {
+    if (event.keyCode == 13) {
+        console.log("Sending console: '" + document.getElementById("consoleInputField").value + "'");
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", "/api/console?" + document.getElementById("consoleInputField").value, true); // true for asynchronous 
+        xmlHttp.send(null);
+    }
+}
+
 window.onload = function () {
     if (("WebSocket" in window) === false) {
         alert("The Browser does not supports WebSockets!");
         location.reload();
     }
-
-    // rt_data_cb("{\"i_p\":	35721,\"v_p\":	19650,\"v_n\":	31331,\"v_i\":	19650,\"t_drv\":	62601,\"t_inv_p\":	62601,\"t_inv_n\":	62601,\"t_lsr\":	62601}");
 
     CfgElements.modal = document.getElementById("modalConfig");
     CfgElements.ipBackend = document.getElementById("inputIpBakend");
@@ -187,3 +196,4 @@ window.isVisible = isVisible;
 window.logAppend = logAppend;
 window.openSettings = openSettings;
 window.sendWsMsg = sendWsMsg;
+window.consoleCmd = consoleCmd;

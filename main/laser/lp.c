@@ -29,8 +29,12 @@ spi_nodma_device_handle_t lsr_spi = NULL;
 
 volatile uint32_t gs_pnt_cnt[1] = {1};
 volatile uint32_t gs_pnt_cur[1] = {0};
+volatile uint32_t gs_sw[1] = {0};
 
-volatile uint16_t daq_presets[6 * 6] = {0};
+volatile uint32_t lp_image_cnt_points = 1;
+
+volatile uint16_t daq_presets[6 * 4000] = {0};
+volatile uint16_t daq_presets2[6 * 10] = {0};
 
 volatile uint8_t default_frame[sizeof(lp_frame_h_t) + 1 * sizeof(lp_point_t)];
 
@@ -120,16 +124,25 @@ void lp_init(void)
 	for(uint32_t i = 0; i < 6; i++)
 	{
 		daq_presets[i * 6] = 1000;
+		daq_presets2[i * 6] = 1000;
 	}
 
 #define p_l 2048 - 300
 #define p_h 2048 + 300
 
-	daq_presets[6 * 0 + 1] = 2048;		   // X
-	daq_presets[6 * 0 + 2] = 2048;		   // Y
-	daq_presets[6 * 1 + 3] = 0 + 0 * 4095; // G
-	daq_presets[6 * 1 + 4] = 0 + 0 * 4095; // B
-	daq_presets[6 * 1 + 5] = 0 + 0 * 4095; // R
+	daq_presets[6 * 0 + 1] = 2048;			// X
+	daq_presets[6 * 0 + 2] = 2048;			// Y
+	daq_presets[6 * 1 + 3] = 0 + 0 * 4095;	// G
+	daq_presets[6 * 1 + 4] = 0 + 0 * 4095;	// B
+	daq_presets[6 * 1 + 5] = 0 + 0 * 4095;	// R
+
+	daq_presets2[6 * 0 + 1] = 2048;			// X
+	daq_presets2[6 * 0 + 2] = 2048;			// Y
+	daq_presets2[6 * 1 + 3] = 0 + 0 * 4095; // G
+	daq_presets2[6 * 1 + 4] = 0 + 0 * 4095; // B
+	daq_presets2[6 * 1 + 5] = 0 + 0 * 4095; // R
+
+	lp_off();
 
 	memset((void *)default_frame, 0, sizeof(default_frame));
 	lp_frame_h_t *i_hdr = (lp_frame_h_t *)default_frame;
@@ -157,6 +170,8 @@ void lp_init(void)
 	PIN_H(PIN_COUNT);
 
 	timer_start(TIMER_GROUP_0, TIMER_0);
+
+	lp_fill_image();
 }
 
 // ===============================================================
@@ -177,6 +192,52 @@ enum
 	LP_FRAME_NOT_CREATED,
 };
 
+void lp_fill_image(void)
+{
+	lp_square(CLR_WHT);
+}
+
+void lp_off(void)
+{
+	gs_pnt_cnt[0] = 1;
+	gs_sw[0] = 0;
+}
+
+void lp_on(void)
+{
+	gs_pnt_cnt[0] = lp_image_cnt_points;
+	gs_sw[0] = 1;
+}
+
+float map(float x, float in_min, float in_max, float out_min, float out_max)
+{
+	if(x < in_min)
+	{
+		x = in_min;
+	}
+	if(x > in_max)
+	{
+		x = in_max;
+	}
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+void lp_fb_reinit(void)
+{
+	lp_image_cnt_points = 0;
+}
+
+// us=83 for 12K
+void lp_fb_append(float x, float y, float cr, float cg, float cb, float scale, float max_br, uint32_t us)
+{
+	daq_presets[6 * lp_image_cnt_points + 0] = us;
+	daq_presets[6 * lp_image_cnt_points + COORD_X] = map(x * scale, -32767, 32767, 0, 4095);
+	daq_presets[6 * lp_image_cnt_points + COORD_Y] = map(y * scale, -32767, 32767, 4095, 0);
+	daq_presets[6 * lp_image_cnt_points + CLR_R] = map(cr * max_br, 0, 255, 0, 4095);
+	daq_presets[6 * lp_image_cnt_points + CLR_G] = map(cg * max_br, 0, 255, 0, 4095);
+	daq_presets[6 * lp_image_cnt_points + CLR_B] = map(cb * max_br, 0, 255, 0, 4095);
+	lp_image_cnt_points++;
+}
+
 void lp_square(uint8_t color)
 {
 	// daq_presets[6 * 0 + 1] = 0; // X
@@ -191,7 +252,7 @@ void lp_square(uint8_t color)
 	// daq_presets[6 * 3 + 1] = 4095; // X
 	// daq_presets[6 * 3 + 2] = 0;	   // Y
 
-#define VVV 1600
+#define VVV 200
 
 #define pos_l_x 2048 - VVV * 2 / 3
 #define pos_h_x 2048 + VVV * 2 / 3
@@ -211,28 +272,28 @@ void lp_square(uint8_t color)
 	daq_presets[6 * 3 + 1] = pos_h_x; // X
 	daq_presets[6 * 3 + 2] = pos_l_y; // Y
 
-#define LVL 300
+#define LVL 600
 	for(uint32_t frm = 0; frm < 4; frm++)
 	{
 		daq_presets[6 * frm + CLR_R] = (color == CLR_R || color == CLR_WHT) ? 600 : 0; // R
 		daq_presets[6 * frm + CLR_G] = (color == CLR_G || color == CLR_WHT) ? LVL : 0; // G
 		daq_presets[6 * frm + CLR_B] = (color == CLR_B || color == CLR_WHT) ? LVL : 0; // B
-		daq_presets[6 * frm] = 10000;
+		daq_presets[6 * frm] = 5000;
 	}
-	gs_pnt_cnt[0] = 4;
+	lp_image_cnt_points = 4;
 }
 
-void lp_blank(void)
-{
-	memset((void *)daq_presets, 0, sizeof(daq_presets));
-	daq_presets[6 * 0 + 1] = 2048; // X
-	daq_presets[6 * 0 + 2] = 2048; // Y
-	for(uint32_t i = 0; i < 6; i++)
-	{
-		daq_presets[i * 6] = 8000;
-	}
-	gs_pnt_cnt[0] = 1;
-}
+// void lp_blank(void)
+// {
+// 	memset((void *)daq_presets, 0, sizeof(daq_presets));
+// 	daq_presets[6 * 0 + 1] = 2048; // X
+// 	daq_presets[6 * 0 + 2] = 2048; // Y
+// 	for(uint32_t i = 0; i < 6; i++)
+// 	{
+// 		daq_presets[i * 6] = 8000;
+// 	}
+// 	gs_pnt_cnt[0] = 1;
+// }
 
 void lsr_q_clear(void)
 {

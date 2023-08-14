@@ -23,6 +23,7 @@
 #include <string.h>
 
 extern volatile uint32_t gs_pnt_cnt[1];
+extern volatile uint16_t daq_presets[];
 
 // duty 300 nihua 350 works
 // fan 850 min @8khz
@@ -31,8 +32,6 @@ extern volatile uint32_t gs_pnt_cnt[1];
 // 74LVC161D,112 NXPERIA
 
 extern void lp_init(void);
-
-extern volatile uint16_t daq_presets[];
 
 #include "soc/timer_group_reg.h"
 
@@ -224,7 +223,15 @@ void app_main(void)
 		uint32_t diff_ms = systick_now - prev_systick;
 		prev_systick = systick_now;
 
-		safety_loop();
+		static uint32_t tick_ms_acc = 0;
+		tick_ms_acc += diff_ms;
+		if(tick_ms_acc >= 2500)
+		{
+			tick_ms_acc = 0;
+			ws_console("ping %d\n", esp_log_timestamp());
+		}
+
+		safety_loop(diff_ms);
 
 		i2c_adc_read();
 		buttons_read(1); // todo debounce
@@ -326,6 +333,7 @@ void app_main(void)
 }
 #endif
 
+		// sw++;
 		static uint16_t cnt = 0;
 		static uint16_t ccc = 0;
 		if(++cnt >= 30)
@@ -343,6 +351,14 @@ void app_main(void)
 			// daq_presets[3] = (ccc & 1) ? 0 : 4095;
 			// daq_presets[4] = (ccc & 1) ? 0 : 4095;
 		}
+
+		// volatile uint16_t daq_presets[6 * 6] = {0};
+
+		// if(sw != 0)
+		// 	ptrptr = daq_presets;
+		// else
+		// 	ptrptr = daq_presets2;
+		// gs_pnt_cnt[0] = ptrptr[4];
 
 		// volatile uint16_t v0 = 0x1234, v1=cnt;
 		// asm("nop");

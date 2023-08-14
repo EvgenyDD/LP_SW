@@ -164,8 +164,22 @@ NOT_CLEAR_FRAME_CUR:
     movi    GPIO_W1TS_REG, GPIO_OUT_W1TS_REG
     memw
 
+// switch source
+    movi    RA, gs_sw
+    memw
+    l32i    RA, RA, 0
+    memw
+    beqz	RA, J_SRC1
+    j       J_SRC2
+
+J_SRC1:
+    movi    R_ARRAY, daq_presets2
+    memw
+    j       SRC_NEXT
+J_SRC2:
     movi    R_ARRAY, daq_presets
     memw
+SRC_NEXT:
 
     // set timer alarm value
     movi    RA, TIMG_T0ALARMLO_REG(0)

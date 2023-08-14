@@ -4,13 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ILDA_FMT_3D_INDEXED 0
-#define ILDA_FMT_2D_INDEXED 1
-#define ILDA_FMT_PALETTE 2
-#define ILDA_FMT_3D_TRUE 4
-#define ILDA_FMT_2D_TRUE 5
-
-static const char format_chunk_sz[] = {
+const char ilda_format_chunk_sz[] = {
 	3 * sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t),	  // 3D INDEXED
 	2 * sizeof(uint16_t) + sizeof(uint8_t) + sizeof(uint8_t),	  // 2D INDEXED
 	3 * sizeof(uint8_t),										  // PALETTE
@@ -395,13 +389,13 @@ int ilda_file_read2(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_
 	// read in each frame/pallete
 	for(uint32_t i = 0; i < ilda->frame_count; i++)
 	{
-		if(header.format >= sizeof(format_chunk_sz) / sizeof(format_chunk_sz[0]))
+		if(header.format >= sizeof(ilda_format_chunk_sz) / sizeof(ilda_format_chunk_sz[0]))
 		{
 			printf("Unknown format %d at frame %d, file pos: x%X\n", header.format, i, fpos);
 			return -2;
 		}
-		const int chunk = format_chunk_sz[header.format];
-		if(format_chunk_sz[header.format] == 0)
+		const int chunk = ilda_format_chunk_sz[header.format];
+		if(ilda_format_chunk_sz[header.format] == 0)
 		{
 			printf("Unknown format %d at frame %d, file pos: x%X\n", header.format, i, fpos);
 			// return -3;
@@ -518,7 +512,7 @@ int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_c
 			return -1;
 		}
 
-		if(header.format >= sizeof(format_chunk_sz) / sizeof(format_chunk_sz[0]))
+		if(header.format >= sizeof(ilda_format_chunk_sz) / sizeof(ilda_format_chunk_sz[0]))
 		{
 			printf("Unknown format %d, file pos: x%X\n", header.format, fpos);
 			return -2;
@@ -536,7 +530,9 @@ int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_c
 			if(ilda->max_point_per_frame < header.point_count) ilda->max_point_per_frame = header.point_count;
 		}
 
-		fpos += format_chunk_sz[header.format] * header.point_count;
+		// ilda->header_size++;
+
+		fpos += ilda_format_chunk_sz[header.format] * header.point_count;
 
 		if(fpos == fsize) return 0;
 		if(fpos > fsize)
@@ -552,13 +548,13 @@ int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_c
 	// // read in each frame/pallete
 	// for(uint32_t i = 0; i < ilda->frame_count; i++)
 	// {
-	// 	if(header.format >= sizeof(format_chunk_sz) / sizeof(format_chunk_sz[0]))
+	// 	if(header.format >= sizeof(ilda_format_chunk_sz) / sizeof(ilda_format_chunk_sz[0]))
 	// 	{
 	// 		printf("Unknown format %d at frame %d, file pos: x%X\n", header.format, i, fpos);
 	// 		return -2;
 	// 	}
-	// 	const int chunk = format_chunk_sz[header.format];
-	// 	if(format_chunk_sz[header.format] == 0)
+	// 	const int chunk = ilda_format_chunk_sz[header.format];
+	// 	if(ilda_format_chunk_sz[header.format] == 0)
 	// 	{
 	// 		printf("Unknown format %d at frame %d, file pos: x%X\n", header.format, i, fpos);
 	// 		// return -3;

@@ -17,6 +17,7 @@
 #include <esp_log.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
+#include <stdarg.h>
 #include <sys/param.h>
 
 #include "i2c_adc.h"
@@ -31,6 +32,19 @@ extern const char root_end[] asm("_binary_index_html_end");
 
 #define TAG "WS"
 
+char ws_console_buffer[512];
+uint32_t ws_console_ptr = 0;
+
+void ws_console(const char *s, ...)
+{
+	if(sizeof(ws_console_buffer) - ws_console_ptr < 2) return;
+
+	va_list args;
+	va_start(args, s);
+	ws_console_ptr += vsnprintf(&ws_console_buffer[ws_console_ptr], sizeof(ws_console_buffer) - ws_console_ptr, s, args);
+	va_end(args);
+}
+
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
 	const uint32_t root_len = root_end - root_start;
@@ -41,13 +55,13 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 
 	return ESP_OK;
 }
- 
+
 static esp_err_t rtd_get_handler(httpd_req_t *req)
 {
 	httpd_resp_set_type(req, "application/json");
 	cJSON *root = cJSON_CreateObject();
 
-	cJSON_AddNumberToObject(root, "i_p", adc_val.i_p + rand() % 125);
+	cJSON_AddNumberToObject(root, "i_p", adc_val.i_p);
 	cJSON_AddNumberToObject(root, "v_p", adc_val.v_p);
 	cJSON_AddNumberToObject(root, "v_n", adc_val.v_n);
 	cJSON_AddNumberToObject(root, "v_i", adc_val.v_i);
@@ -55,6 +69,11 @@ static esp_err_t rtd_get_handler(httpd_req_t *req)
 	cJSON_AddNumberToObject(root, "t_inv_p", adc_val.t_inv_p);
 	cJSON_AddNumberToObject(root, "t_inv_n", adc_val.t_inv_n);
 	cJSON_AddNumberToObject(root, "t_lsr", adc_val.t_lsr_head);
+	if(ws_console_ptr)
+	{
+		cJSON_AddStringToObject(root, "console", ws_console_buffer);
+		ws_console_ptr = 0;
+	}
 
 	const char *sys_info = cJSON_Print(root);
 	httpd_resp_sendstr(req, sys_info);
@@ -71,6 +90,16 @@ static esp_err_t cmd_handler(httpd_req_t *req)
 	return ESP_OK;
 }
 
+static esp_err_t console_handler(httpd_req_t *req)
+{
+	// int total_len = req->content_len;
+	int len = strlen(&req->uri[13]);
+	ESP_LOGI("ws", "console: %s (%d)", &req->uri[13], len);
+	// if(strcmp(req->uri[13]))
+	httpd_resp_sendstr(req, "OK");
+	return ESP_OK;
+}
+
 static const httpd_uri_t root = {
 	.uri = "/",
 	.method = HTTP_GET,
@@ -82,9 +111,14 @@ static const httpd_uri_t rtd = {
 	.handler = rtd_get_handler,
 };
 static const httpd_uri_t cmd = {
-	.uri = "/api/cmd/*",
+	.uri = "/api/cmd",
 	.method = HTTP_GET,
 	.handler = cmd_handler,
+};
+static const httpd_uri_t console = {
+	.uri = "/api/console",
+	.method = HTTP_GET,
+	.handler = console_handler,
 };
 
 // HTTP Error (404) Handler - Redirects all requests to the root page
@@ -128,6 +162,7 @@ void ws_init(void)
 		httpd_register_uri_handler(server, &root);
 		httpd_register_uri_handler(server, &rtd);
 		httpd_register_uri_handler(server, &cmd);
+		httpd_register_uri_handler(server, &console);
 		httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
 	}
 	else

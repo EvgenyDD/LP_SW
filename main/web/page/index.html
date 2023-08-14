@@ -162,10 +162,12 @@
 
             <div id="tab_array">
                 <div id="1" class="tabcontent">
-                    <table id='blocklyBox' style="height: 100%; width: 100%;">
+                    <table id='bbox' style="height: 100%; width: 100%;">
                         <tbody>
                             <tr>
-                                <td style="height:100%;background-color:gray;">AAA</td>
+                                <td style="height:100%;background-color:rgba(23, 16, 66, 0.771);">
+                                    <input id="consoleInputField" onkeypress="consoleCmd()"></input>
+                                </td>
                                 <td id="mid_td"
                                     style="height:100%;width:15%;background:rgb(221, 221, 221);vertical-align: top;">
                                     <table>
@@ -209,7 +211,7 @@
                 </div>
 
                 <div id="2" class="tabcontent">
-                    <table id='blocklyBox' style="height: 100%; width: 100%;">
+                    <table id='bbox' style="height: 100%; width: 100%;">
                         <tbody>
                             <tr>
                                 <td id="blocklyArea" style="height:100%;background-color:gray;"></td>
