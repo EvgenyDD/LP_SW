@@ -3,6 +3,8 @@
 #include "i2c_adc.h"
 #include "i2c_exp.h"
 
+extern float map(float x, float in_min, float in_max, float out_min, float out_max);
+
 #define TEMP_THRS 32
 #define TEMP_THRS_CRITICAL 60
 #define TIMER_VAL_RESET_ERR 500
@@ -26,12 +28,13 @@ bool safety_check_error(void)
 
 void safety_loop(uint32_t diff_ms)
 {
-	if(adc_val.t_drv / 10 > TEMP_THRS ||
-	   adc_val.t_lsr_head / 10 > TEMP_THRS ||
-	   adc_val.t_inv_p / 10 > TEMP_THRS ||
-	   adc_val.t_inv_n / 10 > TEMP_THRS)
+	float maxt = adc_val.t_drv / 10;
+	if(adc_val.t_lsr_head / 10 > maxt) maxt = adc_val.t_lsr_head / 10;
+	if(adc_val.t_inv_p / 10 > maxt) maxt = adc_val.t_inv_p / 10;
+	if(adc_val.t_inv_n / 10 > maxt) maxt = adc_val.t_inv_n / 10;
+	if(maxt > TEMP_THRS)
 	{
-		fan_set_level(100);
+		fan_set_level(map(maxt, TEMP_THRS, TEMP_THRS_CRITICAL, 10, 150));
 	}
 	else
 	{

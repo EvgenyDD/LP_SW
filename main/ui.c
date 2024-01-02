@@ -93,10 +93,11 @@ void cb_common(bool error, bool redraw, ui_item_t *current)
 		{
 			static uint32_t d = 0;
 			d++;
-			if(d >= 4) d = 0;
-			uint32_t frr[] = {12000, 20000, 30000, 40000};
-			// fr = frr[d];
+			if(d >= 3) d = 0;
+			uint32_t frr[] = {12000, 20000, 30000};
+			fr = frr[d];
 			lp_off();
+			lp_change_fr(1000000 / fr);
 			// sd_card_test();
 		}
 	}

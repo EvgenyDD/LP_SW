@@ -233,9 +233,17 @@ void lp_fb_append(float x, float y, float cr, float cg, float cb, float scale, f
 	daq_presets[6 * lp_image_cnt_points + COORD_X] = map(x * scale, -32767, 32767, 0, 4095);
 	daq_presets[6 * lp_image_cnt_points + COORD_Y] = map(y * scale, -32767, 32767, 4095, 0);
 	daq_presets[6 * lp_image_cnt_points + CLR_R] = map(cr * max_br, 0, 255, 0, 4095);
-	daq_presets[6 * lp_image_cnt_points + CLR_G] = map(cg * max_br, 0, 255, 0, 4095);
-	daq_presets[6 * lp_image_cnt_points + CLR_B] = map(cb * max_br, 0, 255, 0, 4095);
+	daq_presets[6 * lp_image_cnt_points + CLR_G] = map(cg * max_br, 0, 255, 0, 4095 / 6);
+	daq_presets[6 * lp_image_cnt_points + CLR_B] = map(cb * max_br, 0, 255, 0, 4095 / 5);
 	lp_image_cnt_points++;
+}
+
+void lp_change_fr(uint32_t us)
+{
+	for(uint32_t i = 0; i < lp_image_cnt_points; i++)
+	{
+		daq_presets[6 * i + 0] = us;
+	}
 }
 
 void lp_square(uint8_t color)

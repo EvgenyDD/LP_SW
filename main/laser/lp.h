@@ -31,5 +31,6 @@ void lp_on(void);
 
 void lp_fb_reinit(void);
 void lp_fb_append(float x, float y, float cr, float cg, float cb, float scale, float max_br, uint32_t us);
+void lp_change_fr(uint32_t us);
 
 #endif // LP_H__
