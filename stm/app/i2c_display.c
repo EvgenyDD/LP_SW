@@ -43,8 +43,8 @@ typedef enum
 	SCROLL_STOP = 5
 } sh1107_scroll_type_t;
 
-static int _pages = HEIGHT / 8;
-static int _direction = DIRECTION0;
+static uint32_t _pages = HEIGHT / 8;
+static uint32_t _direction = DIRECTION0;
 static uint8_t disp_buf[16][64];
 static uint8_t tx_buffer[4096];
 
@@ -213,7 +213,7 @@ void i2c_display_init(void)
 	i2c_write(I2C_SH1107_ADDR, init_seq, sizeof(init_seq), false);
 }
 
-void i2c_display_image(int page, int seg, uint8_t *images, int width)
+void i2c_display_image(uint32_t page, uint32_t seg, uint8_t *images, uint32_t width)
 {
 	// if(page >= HEIGHT / 8) ESP_LOGE("", "page >= HEIGHT / 8");
 	// if(seg >= WIDTH) ESP_LOGE("", "seg >= WIDTH");
@@ -249,7 +249,7 @@ void i2c_display_contrast(uint8_t contrast)
 
 void i2c_display_show_buffer(void)
 {
-	for(int page = 0; page < _pages; page++)
+	for(uint32_t page = 0; page < _pages; page++)
 	{
 		i2c_display_image(page, 0, disp_buf[page], WIDTH);
 	}
@@ -257,8 +257,8 @@ void i2c_display_show_buffer(void)
 
 void i2c_display_set_buffer(uint8_t *buffer)
 {
-	int index = 0;
-	for(int page = 0; page < _pages; page++)
+	uint32_t index = 0;
+	for(uint32_t page = 0; page < _pages; page++)
 	{
 		memcpy(disp_buf[page], &buffer[index], 64);
 		index = index + 64;
@@ -267,27 +267,27 @@ void i2c_display_set_buffer(uint8_t *buffer)
 
 void i2c_display_get_buffer(uint8_t *buffer)
 {
-	int index = 0;
-	for(int page = 0; page < _pages; page++)
+	uint32_t index = 0;
+	for(uint32_t page = 0; page < _pages; page++)
 	{
 		memcpy(&buffer[index], disp_buf[page], 64);
 		index = index + 64;
 	}
 }
 
-void i2c_display_display_image(int page, int seg, uint8_t *images, int width)
+void i2c_display_display_image(uint32_t page, uint32_t seg, uint8_t *images, uint32_t width)
 {
 	i2c_display_image(page, seg, images, width);
 	memcpy(&disp_buf[page][seg], images, width);
 }
 
-void i2c_display_display_text(int row, int col, char *text, int text_len, bool invert)
+void i2c_display_display_text(uint32_t row, uint32_t col, char *text, uint32_t text_len, bool invert)
 {
-	int _length = text_len;
-	int w = 0;
-	int h = 0;
-	int _row = 0;
-	int _col = 0;
+	uint32_t _length = text_len;
+	uint32_t w = 0;
+	uint32_t h = 0;
+	uint32_t _row = 0;
+	uint32_t _col = 0;
 	int _rowadd = 0;
 	int _coladd = 0;
 	if(_direction == DIRECTION0)
@@ -339,14 +339,14 @@ void i2c_display_display_text(int row, int col, char *text, int text_len, bool i
 	if(col + text_len > w) _length = w - col;
 
 	uint8_t image[8];
-	for(int i = 0; i < _length; i++)
+	for(uint32_t i = 0; i < _length; i++)
 	{
 		memcpy(image, font8x8_basic_tr[(uint8_t)text[i]], 8);
 		if(invert) i2c_display_invert(image, 8);
 		i2c_display_rotate_image(image, _direction);
 		i2c_display_display_image(_row, _col, image, 8);
-		_row = _row + _rowadd;
-		_col = _col + _coladd;
+		_row = (uint32_t)((int)_row + _rowadd);
+		_col = (uint32_t)((int)_col + _coladd);
 	}
 }
 
@@ -354,7 +354,7 @@ void i2c_display_clear_screen(bool invert)
 {
 	uint8_t zero[64];
 	memset(zero, invert ? 0xff : 0, sizeof(zero));
-	for(int page = 0; page < _pages; page++)
+	for(uint32_t page = 0; page < _pages; page++)
 	{
 		memcpy(&disp_buf[page][0], zero, 64);
 		i2c_display_image(page, 0, zero, WIDTH);
@@ -366,20 +366,20 @@ void i2c_display_clear(void)
 	memset(disp_buf, 0, sizeof(disp_buf));
 }
 
-void i2c_display_clear_line(int row, bool invert)
+void i2c_display_clear_line(uint32_t row, bool invert)
 {
 	char space[1];
 	space[0] = 0x20;
 	if(_direction == DIRECTION0 || _direction == DIRECTION90)
 	{
-		for(int col = 0; col < WIDTH / 8; col++)
+		for(uint32_t col = 0; col < WIDTH / 8; col++)
 		{
 			i2c_display_display_text(row, col, space, 1, invert);
 		}
 	}
 	else
 	{
-		for(int col = 0; col < HEIGHT / 8; col++)
+		for(uint32_t col = 0; col < HEIGHT / 8; col++)
 		{
 			i2c_display_display_text(row, col, space, 1, invert);
 		}
@@ -389,16 +389,16 @@ void i2c_display_clear_line(int row, bool invert)
 // delay = 0 : display with no wait
 // delay > 0 : display with wait
 // delay < 0 : no display
-void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, int8_t delay)
+static void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, uint32_t start, uint32_t end, int8_t delay)
 {
 	if(scroll == SCROLL_RIGHT)
 	{
-		int _start = start; // 0 to 15
-		int _end = end;		// 0 to 15
+		uint32_t _start = start; // 0 to 15
+		uint32_t _end = end;	 // 0 to 15
 		if(_end >= _pages) _end = _pages - 1;
 		uint8_t wk;
 		// for (int page=0;page<_pages;page++) {
-		for(int page = _start; page <= _end; page++)
+		for(uint32_t page = _start; page <= _end; page++)
 		{
 			wk = disp_buf[page][63];
 			for(int seg = 63; seg > 0; seg--)
@@ -410,12 +410,12 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 	}
 	else if(scroll == SCROLL_LEFT)
 	{
-		int _start = start; // 0 to 15
-		int _end = end;		// 0 to 15
+		uint32_t _start = start; // 0 to 15
+		uint32_t _end = end;	 // 0 to 15
 		if(_end >= _pages) _end = _pages - 1;
 		uint8_t wk;
 		// for (int page=0;page<_pages;page++) {
-		for(int page = _start; page <= _end; page++)
+		for(uint32_t page = _start; page <= _end; page++)
 		{
 			wk = disp_buf[page][0];
 			for(int seg = 0; seg < 63; seg++)
@@ -427,23 +427,23 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 	}
 	else if(scroll == SCROLL_UP)
 	{
-		int _start = start; // 0 to {width-1}
-		int _end = end;		// 0 to {width-1}
+		uint32_t _start = start; // 0 to {width-1}
+		uint32_t _end = end;	 // 0 to {width-1}
 		if(_end >= WIDTH) _end = WIDTH - 1;
 		uint8_t wk0;
 		uint8_t wk1;
 		uint8_t wk2;
 		uint8_t save[64];
 		// Save pages 0
-		for(int seg = 0; seg < 64; seg++)
+		for(uint32_t seg = 0; seg < 64; seg++)
 		{
 			save[seg] = disp_buf[0][seg];
 		}
 		// Page0 to Page15
-		for(int page = 0; page < _pages - 1; page++)
+		for(uint32_t page = 0; page < _pages - 1; page++)
 		{
 			// for (int seg=0;seg<64;seg++) {
-			for(int seg = _start; seg <= _end; seg++)
+			for(uint32_t seg = _start; seg <= _end; seg++)
 			{
 				wk0 = disp_buf[page][seg];
 				wk1 = disp_buf[page + 1][seg];
@@ -457,9 +457,9 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 			}
 		}
 		// Page15
-		int pages = _pages - 1;
+		uint32_t pages = _pages - 1;
 		// for (int seg=0;seg<64;seg++) {
-		for(int seg = _start; seg <= _end; seg++)
+		for(uint32_t seg = _start; seg <= _end; seg++)
 		{
 			wk0 = disp_buf[pages][seg];
 			wk1 = save[seg];
@@ -472,24 +472,24 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 	}
 	else if(scroll == SCROLL_DOWN)
 	{
-		int _start = start; // 0 to {width-1}
-		int _end = end;		// 0 to {width-1}
+		uint32_t _start = start; // 0 to {width-1}
+		uint32_t _end = end;	 // 0 to {width-1}
 		if(_end >= WIDTH) _end = WIDTH - 1;
 		uint8_t wk0;
 		uint8_t wk1;
 		uint8_t wk2;
 		uint8_t save[64];
 		// Save pages 15
-		int pages = _pages - 1;
-		for(int seg = 0; seg < 64; seg++)
+		uint32_t pages = _pages - 1;
+		for(uint32_t seg = 0; seg < 64; seg++)
 		{
 			save[seg] = disp_buf[pages][seg];
 		}
 		// Page15 to Page1
-		for(int page = pages; page > 0; page--)
+		for(uint32_t page = pages; page > 0; page--)
 		{
 			// for (int seg=0;seg<64;seg++) {
-			for(int seg = _start; seg <= _end; seg++)
+			for(uint32_t seg = _start; seg <= _end; seg++)
 			{
 				wk0 = disp_buf[page][seg];
 				wk1 = disp_buf[page - 1][seg];
@@ -503,7 +503,7 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 			}
 		}
 		// Page0
-		for(int seg = _start; seg <= _end; seg++)
+		for(uint32_t seg = _start; seg <= _end; seg++)
 		{
 			wk0 = disp_buf[0][seg];
 			wk1 = save[seg];
@@ -517,7 +517,7 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 
 	if(delay >= 0)
 	{
-		for(int page = 0; page < _pages; page++)
+		for(uint32_t page = 0; page < _pages; page++)
 		{
 			i2c_display_image(page, 0, disp_buf[page], 64);
 			// if(delay) vTaskDelay(delay);
@@ -525,7 +525,7 @@ void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, int start, int end, i
 	}
 }
 
-void i2c_display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height, bool invert)
+static void i2c_display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height, bool invert)
 {
 	if((width % 8) != 0)
 	{
@@ -565,14 +565,14 @@ void i2c_display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int hei
 void i2c_display_invert(uint8_t *buf, size_t blen)
 {
 	uint8_t wk;
-	for(int i = 0; i < blen; i++)
+	for(uint32_t i = 0; i < blen; i++)
 	{
 		wk = buf[i];
 		buf[i] = ~wk;
 	}
 }
 
-uint8_t display_copy_bit(uint8_t src, int srcBits, uint8_t dst, int dstBits)
+static uint8_t display_copy_bit(uint8_t src, int srcBits, uint8_t dst, int dstBits)
 {
 	uint8_t smask = 0x01 << srcBits;
 	uint8_t dmask = 0x01 << dstBits;
@@ -607,11 +607,11 @@ uint8_t i2c_display_rotate_byte(uint8_t ch1)
 	return ch2;
 }
 
-void i2c_display_rotate_image(uint8_t *buf, int dir)
+void i2c_display_rotate_image(uint8_t *buf, uint32_t dir)
 {
 	uint8_t wk[8];
 	if(dir == DIRECTION0) return;
-	for(int i = 0; i < 8; i++)
+	for(uint32_t i = 0; i < 8; i++)
 	{
 		wk[i] = buf[i];
 		buf[i] = 0;
@@ -659,13 +659,13 @@ void i2c_display_rotate_image(uint8_t *buf, int dir)
 void i2c_display_fadeout(void)
 {
 	uint8_t image[1];
-	for(int page = 0; page < _pages; page++)
+	for(uint32_t page = 0; page < _pages; page++)
 	{
 		image[0] = 0xFF;
-		for(int line = 0; line < 8; line++)
+		for(uint32_t line = 0; line < 8; line++)
 		{
 			image[0] = image[0] << 1;
-			for(int seg = 0; seg < WIDTH; seg++)
+			for(uint32_t seg = 0; seg < WIDTH; seg++)
 			{
 				i2c_display_image(page, seg, image, 1);
 			}
@@ -673,4 +673,4 @@ void i2c_display_fadeout(void)
 	}
 }
 
-void i2c_display_direction(int _d) { _direction = _d; }
+void i2c_display_direction(uint32_t _d) { _direction = _d; }

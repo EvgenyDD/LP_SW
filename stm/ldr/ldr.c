@@ -17,10 +17,13 @@ bool g_stay_in_boot = false;
 
 volatile uint64_t system_time = 0;
 
-static volatile int boot_delay = BOOT_DELAY;
+static volatile uint32_t boot_delay = BOOT_DELAY;
 static int32_t prev_systick = 0;
 
-config_entry_t g_device_config[] = {};
+uint8_t tmp = 0;
+config_entry_t g_device_config[] = {
+	{"0", 1, 0, &tmp},
+};
 const uint32_t g_device_config_count = sizeof(g_device_config) / sizeof(g_device_config[0]);
 
 uint32_t g_uid[3];
@@ -39,7 +42,7 @@ void delay_ms(volatile uint32_t delay_ms)
 	}
 }
 
-void main(void)
+__attribute__((noreturn)) void main(void)
 {
 	RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
 
@@ -59,7 +62,6 @@ void main(void)
 	ret_mem_init();
 	ret_mem_set_load_src(LOAD_SRC_BOOTLOADER); // let preboot know it was booted from bootloader
 
-	// adc_init();
 	fram_init();
 
 	if(config_validate() == CONFIG_STS_OK) config_read_storage();

@@ -6,18 +6,14 @@
 #include "usb_conf.h"
 #include "usb_dcd_int.h"
 #include "usbd_desc.h"
-#include "usbd_proto_core.h"
+#include "usbd_proto_vend.h"
 #include "usbd_req.h"
 #include "usbd_usr.h"
 #include <string.h>
 
 extern bool g_stay_in_boot;
 
-extern void dev_tx_sent(void *pdev);
-extern void dev_rx_sent(void *pdev);
-extern void dev_handler(void *pdev, USB_SETUP_REQ *req);
-
-extern void delay_ms(volatile uint32_t delay_ms);
+#define DISC_TO_MS 100
 
 #if FW_TYPE == FW_LDR
 #define FW_TARGET FW_APP
@@ -29,16 +25,15 @@ extern void delay_ms(volatile uint32_t delay_ms);
 #define ADDR_END ((uint32_t) & __ldr_end)
 #endif
 
-uint8_t *USBD_DFU_GetCfgDesc(uint8_t speed, uint16_t *length);
+uint8_t usbd_buffer[USBD_BUF_SZ] = {0};
+uint32_t usbd_buffer_rx_sz = 0;
 
-static __IO uint32_t usbd_dfu_AltSet = 0;
-
-#define DISC_TO_MS 100
+static uint32_t usbd_dfu_AltSet = 0;
 static uint32_t reset_issue_cnt = 0;
-
-static uint8_t usb_buffer[1024] = {0};
-static uint32_t usb_buffer_rx_sz = 0;
 static USB_OTG_CORE_HANDLE USB_OTG_dev;
+static uint8_t fw_sts[3];
+static volatile bool dl_pending = false;
+static bool dwnload_was = false;
 
 USBD_Usr_cb_TypeDef USR_cb = {
 	USBD_USR_Init,
@@ -99,9 +94,6 @@ void USB_OTG_BSP_mDelay(const uint32_t msec)
 	delay_ms(msec);
 }
 
-static uint8_t fw_sts[3];
-static volatile bool dl_pending = false;
-
 static uint8_t usbd_dfu_Setup(void *pdev, USB_SETUP_REQ *req)
 {
 	switch(req->bmRequest & USB_REQ_TYPE_MASK)
@@ -128,14 +120,14 @@ static uint8_t usbd_dfu_Setup(void *pdev, USB_SETUP_REQ *req)
 			break;
 
 		case DFU_DNLOAD:
-			if(req->wLength > sizeof(usb_buffer) || req->wLength < 1 + 4)
+			if(req->wLength > sizeof(usbd_buffer) || req->wLength < 1 + 4)
 			{
 				USBD_CtlError(pdev, req);
 				break;
 			}
 			dl_pending = true;
-			usb_buffer_rx_sz = req->wLength;
-			USBD_CtlPrepareRx(pdev, usb_buffer, req->wLength);
+			usbd_buffer_rx_sz = req->wLength;
+			USBD_CtlPrepareRx(pdev, usbd_buffer, req->wLength);
 			break;
 
 		default:
@@ -145,7 +137,7 @@ static uint8_t usbd_dfu_Setup(void *pdev, USB_SETUP_REQ *req)
 		break;
 
 	case USB_REQ_TYPE_VENDOR:
-		dev_handler(pdev, req);
+		usbd_proto_vendor_handler(pdev, req);
 		break;
 
 	case USB_REQ_TYPE_STANDARD:
@@ -186,7 +178,7 @@ static uint8_t usbd_dfu_Setup(void *pdev, USB_SETUP_REQ *req)
 
 static uint8_t EP0_TxSent(void *pdev)
 {
-	dev_tx_sent(pdev);
+	usbd_proto_vendor_tx_sent(pdev);
 	return USBD_OK;
 }
 
@@ -196,17 +188,22 @@ static uint8_t EP0_RxReady(void *pdev)
 	{
 		g_stay_in_boot = true;
 
-		uint32_t addr_off, size_to_write = usb_buffer_rx_sz - 4;
-		memcpy(&addr_off, &usb_buffer[0], 4);
+		uint32_t addr_off, size_to_write = usbd_buffer_rx_sz - 4;
+		memcpy(&addr_off, &usbd_buffer[0], 4);
 		if(addr_off > ADDR_END - ADDR_ORIGIN || ADDR_END - ADDR_ORIGIN - size_to_write < addr_off)
 		{
 			dl_pending = false;
 			return USBD_FAIL;
 		}
 		if(addr_off == 0) platform_flash_erase_flag_reset();
-		int sts = platform_flash_write(ADDR_ORIGIN + addr_off, &usb_buffer[4], size_to_write);
+		int sts = platform_flash_write(ADDR_ORIGIN + addr_off, &usbd_buffer[4], size_to_write);
+		dwnload_was = true;
 		dl_pending = false;
 		if(sts) return USBD_FAIL;
+	}
+	else
+	{
+		usbd_proto_vendor_rx_received(pdev);
 	}
 	return USBD_OK;
 }
@@ -262,12 +259,7 @@ void usb_init(void)
 
 	DCD_DevConnect(&USB_OTG_dev);
 }
-enum
-{
-	ST_IDLE = 0,
-	ST_DWL,
-	ST_UPL,
-} st = 0;
+
 void usb_disconnect(void)
 {
 	DCD_DevDisconnect(&USB_OTG_dev);
@@ -285,9 +277,9 @@ void usb_poll(uint32_t diff_ms)
 {
 	if(reset_issue_cnt)
 	{
-		if(reset_issue_cnt <= diff_ms && st == ST_IDLE)
+		if(reset_issue_cnt <= diff_ms && usbd_proto_is_idle())
 		{
-			ret_mem_set_bl_stuck(true);
+			if(!dwnload_was) ret_mem_set_bl_stuck(true);
 			platform_reset();
 		}
 		if(reset_issue_cnt > diff_ms) reset_issue_cnt -= diff_ms;
@@ -295,44 +287,3 @@ void usb_poll(uint32_t diff_ms)
 }
 
 void OTG_FS_IRQHandler(void) { USBD_OTG_ISR_Handler(&USB_OTG_dev); }
-
-uint16_t wLength = sizeof(usb_buffer);
-
-char history[1024] = {0};
-int hc = 0;
-
-#include <stdio.h>
-
-void dev_handler(void *pdev, USB_SETUP_REQ *req)
-{
-	if(st != ST_IDLE)
-	{
-		USBD_CtlError(pdev, req);
-		return;
-	}
-	if(req->bRequest == 0) // download
-	{
-		if(req->wLength > 0)
-		{
-			wLength = req->wLength;
-			if(wLength > sizeof(usb_buffer))
-			{
-				USBD_CtlError(pdev, req);
-				return;
-			}
-			USBD_CtlPrepareRx(pdev, usb_buffer, wLength);
-			st = ST_DWL;
-		}
-	}
-	else // upload
-	{
-		USBD_CtlSendData(pdev, usb_buffer, wLength - 1);
-		st = ST_UPL;
-	}
-}
-
-void dev_tx_sent(void *pdev) // no sense
-{
-	// hc += sprintf(&history[hc], "T");
-	st = ST_IDLE;
-}

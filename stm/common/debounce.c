@@ -14,17 +14,17 @@ void debounce_init(debounce_t *b, int cfg_long_press_time)
 	b->cfg_long_press_time = cfg_long_press_time;
 }
 
-void debounce_update(debounce_t *b, bool state, int time_diff)
+void debounce_update(debounce_t *b, bool state, uint32_t time_diff)
 {
 	if(time_diff != 0)
 	{
-		b->cnt_fltr += (state ? 1 : -1) * time_diff;
+		b->cnt_fltr += (state ? 1 : -1) * (int)time_diff;
 		b->cnt_fltr = CLIP(b->cnt_fltr, 0, b->cfg_max_thrs);
 
 		if(b->cnt_fltr > b->cfg_press_thrs)
 		{
 			b->int_state = BTN_PRESS;
-			b->cnt_press = CLIP(b->cnt_press + time_diff, 0, b->cfg_long_press_time);
+			b->cnt_press = CLIP(b->cnt_press + (int)time_diff, 0, b->cfg_long_press_time);
 		}
 		if(b->cnt_fltr < b->cfg_release_thrs)
 		{

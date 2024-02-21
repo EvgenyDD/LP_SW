@@ -28,6 +28,6 @@ typedef struct
 } debounce_t;
 
 void debounce_init(debounce_t *inst, int cfg_long_press_time);
-void debounce_update(debounce_t *inst, bool state, int time_diff);
+void debounce_update(debounce_t *inst, bool state, uint32_t time_diff);
 
 #endif // DEBOUNCE_H

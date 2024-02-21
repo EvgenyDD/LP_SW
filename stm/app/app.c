@@ -28,7 +28,10 @@ uint32_t g_uid[3];
 volatile uint64_t system_time = 0;
 static int32_t prev_systick = 0;
 
-config_entry_t g_device_config[] = {};
+uint8_t tmp = 0;
+config_entry_t g_device_config[] = {
+	{"0", 1, 0, &tmp},
+};
 const uint32_t g_device_config_count = sizeof(g_device_config) / sizeof(g_device_config[0]);
 
 void delay_ms(volatile uint32_t delay_ms)
@@ -54,7 +57,7 @@ static void end_loop(void)
 uint8_t addr_acked[128] = {0};
 uint32_t addr_count = 0;
 static char buffer[128];
-void main(void)
+__attribute__((noreturn)) void main(void)
 {
 	RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
 

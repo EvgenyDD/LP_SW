@@ -145,7 +145,10 @@ config_sts_t config_write_storage(void)
 
 		uint32_t old_data_size;
 		platform_flash_read(CFG_ORIGIN, (uint8_t *)&old_data_size, sizeof(old_data_size));
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvla"
 		uint8_t buf_old_data[4 + old_data_size];
+#pragma GCC diagnostic pop
 		memset(buf_old_data, 0, sizeof(buf_old_data)); // erase buffer
 		if(4 + old_data_size <= sizeof(buf_old_data))
 		{
