@@ -1,6 +1,6 @@
 #include "lp.h"
 #include "driver/gpio.h"
-#include "driver/timer.h"
+#include "driver/gptimer.h"
 #include "esp_attr.h"
 #include "esp_eth_mac.h"
 #include "esp_eth_phy.h"
@@ -9,11 +9,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ilda.h"
-#include "spi_master_nodma.h"
+// #include "spi_master_nodma.h"
+#include <soc/gpio_reg.h>
+#include <soc/soc.h>
+#include <soc/spi_struct.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
-
 #define PIN_LDAC 5
 #define PIN_DATA 4
 #define PIN_CLK 12
@@ -22,10 +24,8 @@
 #define SPI_BUS HSPI_HOST
 #define DAC_SPI SPI2
 
-#define PIN_H(X) GPIO.out_w1ts = (1 << X)
-#define PIN_L(X) GPIO.out_w1tc = (1 << X)
-
-spi_nodma_device_handle_t lsr_spi = NULL;
+#define PIN_H(X) REG_WRITE(GPIO_OUT_W1TS_REG, (1 << X))
+#define PIN_L(X) REG_WRITE(GPIO_OUT_W1TC_REG, (1 << X))
 
 volatile uint32_t gs_pnt_cnt[1] = {1};
 volatile uint32_t gs_pnt_cur[1] = {0};
@@ -36,7 +36,13 @@ volatile uint32_t lp_image_cnt_points = 1;
 volatile uint16_t daq_presets[6 * 4000] = {0};
 volatile uint16_t daq_presets2[6 * 10] = {0};
 
-volatile uint8_t default_frame[sizeof(lp_frame_h_t) + 1 * sizeof(lp_point_t)];
+volatile uint8_t default_frame[sizeof(lp_frame_h_t) + 1000 * sizeof(lp_point_t)];
+
+gptimer_handle_t gptimer = NULL;
+
+#if 0
+spi_nodma_device_handle_t lsr_spi = NULL;
+#endif
 
 void lp_init(void)
 {
@@ -51,7 +57,7 @@ void lp_init(void)
 	gpio_set_direction(PIN_COUNT, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_LDAC, 1);
 	gpio_set_level(PIN_COUNT, 0);
-
+#if 0
 	spi_nodma_device_handle_t spi;
 	spi_nodma_bus_config_t buscfg = {
 		.miso_io_num = -1,
@@ -75,36 +81,18 @@ void lp_init(void)
 
 	ret = spi_nodma_device_select(lsr_spi, 1);
 	assert(ret == ESP_OK);
-
-	timer_config_t config = {
-		.alarm_en = true,
-		.counter_en = false,
-		.intr_type = TIMER_INTR_LEVEL,
-		.counter_dir = TIMER_COUNT_UP,
-		.auto_reload = true,
-		.divider = 80 /* 1 us per tick */
+#endif
+	gptimer_config_t config = {
+		.clk_src = GPTIMER_CLK_SRC_DEFAULT,
+		.direction = GPTIMER_COUNT_UP,
+		.resolution_hz = 1 * 1000 * 1000 /* 1 us per tick */
 	};
-	timer_init(TIMER_GROUP_0, TIMER_0, &config);
-	timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
-	timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 22);
-	timer_enable_intr(TIMER_GROUP_0, TIMER_0);
-	ESP_ERROR_CHECK(timer_isr_register(TIMER_GROUP_0, TIMER_0, NULL, NULL, ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL5, NULL));
-
-	// timer_config_t config_rt = {
-	// 	.alarm_en = true,
-	// 	.counter_en = false,
-	// 	.intr_type = TIMER_INTR_LEVEL,
-	// 	.counter_dir = TIMER_COUNT_UP,
-	// 	.auto_reload = true,
-	// 	.divider = 2, // Set prescaler for 40 MHz clock
-	// };
-
-	// timer_init(TIMER_GROUP_0, 1, &config_rt);
-	// timer_set_counter_value(TIMER_GROUP_0, 1, 0);
-	// timer_set_alarm_value(TIMER_GROUP_0, 1, 5000000);
-	// timer_enable_intr(TIMER_GROUP_0, 1);
-	// timer_start(TIMER_GROUP_0, 1);
-
+	gptimer_new_timer(&config, &gptimer);
+	// gptimer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
+	// gptimer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 22);
+	// gptimer_enable_intr(TIMER_GROUP_0, TIMER_0);
+	// ESP_ERROR_CHECK(gptimer_isr_register(TIMER_GROUP_0, TIMER_0, NULL, NULL, ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL5, NULL));
+#if 0
 	DAC_SPI.user.usr_mosi_highpart = 0;
 	DAC_SPI.mosi_dlen.usr_mosi_dbitlen = 16 - 1;
 	DAC_SPI.user.usr_mosi = 1;
@@ -118,7 +106,7 @@ void lp_init(void)
 		DAC_SPI.miso_dlen.usr_miso_dbitlen = 16 - 1;
 		DAC_SPI.user.usr_miso = 1;
 	}
-
+#endif
 	memset((void *)daq_presets, 0, sizeof(daq_presets));
 
 	for(uint32_t i = 0; i < 6; i++)
@@ -130,11 +118,11 @@ void lp_init(void)
 #define p_l 2048 - 300
 #define p_h 2048 + 300
 
-	daq_presets[6 * 0 + 1] = 2048;			// X
-	daq_presets[6 * 0 + 2] = 2048;			// Y
-	daq_presets[6 * 1 + 3] = 0 + 0 * 4095;	// G
-	daq_presets[6 * 1 + 4] = 0 + 0 * 4095;	// B
-	daq_presets[6 * 1 + 5] = 0 + 0 * 4095;	// R
+	daq_presets[6 * 0 + 1] = 2048;		   // X
+	daq_presets[6 * 0 + 2] = 2048;		   // Y
+	daq_presets[6 * 1 + 3] = 0 + 0 * 4095; // G
+	daq_presets[6 * 1 + 4] = 0 + 0 * 4095; // B
+	daq_presets[6 * 1 + 5] = 0 + 0 * 4095; // R
 
 	daq_presets2[6 * 0 + 1] = 2048;			// X
 	daq_presets2[6 * 0 + 2] = 2048;			// Y
@@ -169,7 +157,7 @@ void lp_init(void)
 		;
 	PIN_H(PIN_COUNT);
 
-	timer_start(TIMER_GROUP_0, TIMER_0);
+	// gptimer_start(TIMER_GROUP_0, TIMER_0);
 
 	lp_fill_image();
 }

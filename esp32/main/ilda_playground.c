@@ -92,7 +92,7 @@ int ilda_check_file(const char *path)
 
 	sts = ilda_file_parse_chunk(&ilda, NULL, 0, use_64b_color);
 
-	ESP_LOGI("FA", "COORD: X: %d %d | Y: %d %d | Count: %d", inst.min_c[0], inst.max_c[0], inst.min_c[1], inst.max_c[1], pnt_count);
+	ESP_LOGI("FA", "COORD: X: %ld %ld | Y: %ld %ld | Count: %ld", inst.min_c[0], inst.max_c[0], inst.min_c[1], inst.max_c[1], pnt_count);
 
 	fclose(fd);
 	return sts;
@@ -128,7 +128,7 @@ int ilda_file_load(const char *path)
 	} while(chunksize != 0);
 
 	sts = ilda_file_parse_chunk(&ilda, NULL, 0, use_64b_color);
-	ESP_LOGI("", "File load size: %d | sts: %d", pnt_count, sts);
+	ESP_LOGI("", "File load size: %ld | sts: %d", pnt_count, sts);
 	fclose(fd);
 	return sts;
 }

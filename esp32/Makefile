@@ -1,17 +1,17 @@
-PROJECT_NAME := LP
-include comport_sel.mk
-include $(IDF_PATH)/make/project.mk
+all:
+	@idf.py build
 
-LISTING=build/$(PROJECT_NAME).lst
+full: web/page/dist/index.html
+	@idf.py build
 
-listing: $(LISTING)
+f: full
+	idf.py -p COM5 flash
 
-$(LISTING): $(APP_ELF)
-	$(OBJDUMP) -d -t -S $< >$(@)
+fm: f
+	idf.py -p COM5 monitor
 
-html:
-	make -C main/web/page
+config:
+	@idf.py menuconfig
 
-.PHONY: component-html_compiler-build
-component-html_compiler-build:
-	make -C main/web/page
+web/page/dist/index.html:
+	@make -C main/web/page --no-print-directory

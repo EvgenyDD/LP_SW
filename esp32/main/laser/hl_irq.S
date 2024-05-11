@@ -4,7 +4,6 @@
 #include "soc/spi_reg.h"
 #include "soc/timer_group_reg.h"
 
-
 #define DELAY_CYCLES 63
 
 #define LDAC_BITMASK (1<<5)

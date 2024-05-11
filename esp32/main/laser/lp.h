@@ -22,6 +22,8 @@ inline const char *clr_to_str(uint32_t color)
 	return "-";
 }
 
+void lp_init(void);
+
 void lp_square(uint8_t color);
 
 void lp_fill_image(void);

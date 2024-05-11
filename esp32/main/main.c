@@ -1,26 +1,14 @@
-#include "../../common/proto.h"
-#include "driver/gpio.h"
+// #include "../../common/proto.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "hal/gpio_hal.h"
 #include "hw.h"
 #include "lp.h"
 #include "safety.h"
-#include "sd_card.h"
-#include "sdkconfig.h"
-#include "soc/timer_group_reg.h"
 #include "web/lan.h"
 #include "web/web_common.h"
 #include "web/wifi.h"
 #include "web/ws.h"
-#include <stdatomic.h>
-#include <string.h>
-
-extern volatile uint32_t gs_pnt_cnt[1];
-extern volatile uint16_t daq_presets[];
-
-extern void lp_init(void);
 
 void app_main(void)
 {
@@ -37,17 +25,12 @@ void app_main(void)
 	ws_init();
 #endif
 
-	// sd_card_mount();
-
-	// lp_init();
-
-	// sd_card_test();
-
-	// lsr_volt_disable();
+	lp_init();
 
 	ESP_LOGI("HEAP", "Free heap: %d", xPortGetFreeHeapSize());
 
 	uint32_t prev_systick = esp_log_timestamp();
+
 	while(1)
 	{
 		const uint32_t systick_now = esp_log_timestamp();
@@ -62,7 +45,7 @@ void app_main(void)
 			ws_console("ping %d\n", esp_log_timestamp());
 		}
 
-		// safety_loop(diff_ms);
+		safety_loop(diff_ms);
 
 		vTaskDelay(1);
 	}

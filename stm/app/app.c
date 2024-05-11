@@ -130,7 +130,7 @@ __attribute__((noreturn)) void main(void)
 		error_set(ERROR_KEY, GPIOC->IDR & (1 << 7));
 		error_set(ERROR_FAN, fan_get_vel() == 0);
 		error_set(ERROR_PS, !(GPIOC->IDR & (1 << 3)));
-		error_set(ERROR_RB, (GPIOA->IDR & (1 << 8)));
+		error_set(ERROR_RB, GPIOA->IDR & (1 << 8));
 
 		// (ERROR_SFTY)
 		// (ERROR_CFG)

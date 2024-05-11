@@ -20,8 +20,6 @@
 #include <stdarg.h>
 #include <sys/param.h>
 
-// #include "i2c_adc.h"
-
 // https://github.com/espressif/esp-idf/blob/master/examples/protocols/http_server/restful_server/main/rest_server.c
 // https://github.com/espressif/esp-idf/blob/master/examples/protocols/http_server/restful_server/README.md
 
@@ -61,14 +59,14 @@ static esp_err_t rtd_get_handler(httpd_req_t *req)
 	httpd_resp_set_type(req, "application/json");
 	cJSON *root = cJSON_CreateObject();
 
-	cJSON_AddNumberToObject(root, "i_p", /*adc_val.i_p*/0);
-	cJSON_AddNumberToObject(root, "v_p", /*adc_val.v_p*/0);
-	cJSON_AddNumberToObject(root, "v_n", /*adc_val.v_n*/0);
-	cJSON_AddNumberToObject(root, "v_i", /*adc_val.v_i*/0);
-	cJSON_AddNumberToObject(root, "t_drv", 0/*adc_val.t_drv*/);
-	cJSON_AddNumberToObject(root, "t_inv_p", 0/*adc_val.t_inv_p*/);
-	cJSON_AddNumberToObject(root, "t_inv_n", 0/*adc_val.t_inv_n*/);
-	cJSON_AddNumberToObject(root, "t_lsr", 0/*adc_val.t_lsr_head*/);
+	cJSON_AddNumberToObject(root, "i_p", /*adc_val.i_p*/ 0);
+	cJSON_AddNumberToObject(root, "v_p", /*adc_val.v_p*/ 1);
+	cJSON_AddNumberToObject(root, "v_n", /*adc_val.v_n*/ 2);
+	cJSON_AddNumberToObject(root, "v_i", /*adc_val.v_i*/ 3);
+	cJSON_AddNumberToObject(root, "t_drv", 0 /*adc_val.t_drv*/);
+	cJSON_AddNumberToObject(root, "t_inv_p", 0 /*adc_val.t_inv_p*/);
+	cJSON_AddNumberToObject(root, "t_inv_n", 0 /*adc_val.t_inv_n*/);
+	cJSON_AddNumberToObject(root, "t_lsr", 0 /*adc_val.t_lsr_head*/);
 	if(ws_console_ptr)
 	{
 		cJSON_AddStringToObject(root, "console", ws_console_buffer);

@@ -24,3 +24,7 @@ bool safety_is_locked(void)
 {
 	return safety_lock;
 }
+
+void safety_loop(uint32_t diff_ms)
+{
+}

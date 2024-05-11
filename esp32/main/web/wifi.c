@@ -1,5 +1,6 @@
 #include "wifi.h"
 #include <esp_log.h>
+#include <esp_mac.h>
 #include <esp_wifi.h>
 #include <string.h>
 
@@ -34,12 +35,13 @@ void wifi_init(void)
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-	wifi_config_t wifi_config = {.ap = {.ssid = WIFI_SSID,
-										.ssid_len = strlen(WIFI_SSID),
-										.channel = WIFI_CHNL,
-										.password = WIFI_PASS,
-										.max_connection = WIFI_MAX_STA_CONN,
-										.authmode = WIFI_AUTH_WPA_WPA2_PSK}};
+	wifi_config_t wifi_config = {.ap =
+									 {.ssid = WIFI_SSID,
+									  .ssid_len = strlen(WIFI_SSID),
+									  .channel = WIFI_CHNL,
+									  .password = WIFI_PASS,
+									  .max_connection = WIFI_MAX_STA_CONN,
+									  .authmode = WIFI_AUTH_WPA_WPA2_PSK}};
 	if(strlen(WIFI_PASS) == 0) wifi_config.ap.authmode = WIFI_AUTH_OPEN;
 
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));

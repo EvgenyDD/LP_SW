@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 void safety_init(void);
-// void safety_loop(uint32_t diff_ms);
+void safety_loop(uint32_t diff_ms);
 void safety_reset_lock(void);
 
 bool safety_check_error(void);
