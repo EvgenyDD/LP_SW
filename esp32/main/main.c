@@ -1,3 +1,4 @@
+#include "../../common/proto.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"

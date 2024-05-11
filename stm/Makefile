@@ -26,6 +26,7 @@ CXXFLAGS += -Werror
 LDFLAGS  += -specs=nano.specs
 LDFLAGS  += -Wl,--gc-sections
 LDFLAGS  += -Wl,--print-memory-usage
+LDFLAGS  += -u _printf_float
 
 EXT_LIBS +=c m nosys
 
@@ -39,11 +40,11 @@ INCDIR += common/config_system
 INCDIR += common/crc
 INCDIR += common/fw_header
 INCDIR += common/i2c
-INCDIR += common/spi
 INCDIR += common/STM32_USB_Device_Library/Core
 INCDIR += common/STM32_USB_OTG_Driver
 INCDIR += common/STM32F4xx_StdPeriph_Driver/inc
 INCDIR += common/usb
+INCDIR += ../common
 
 SOURCES += $(call rwildcard, app, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/adc, *.c *.S *.s)
@@ -52,7 +53,6 @@ SOURCES += $(call rwildcard, common/config_system, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/crc, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/fw_header, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/i2c, *.c *.S *.s)
-SOURCES += $(call rwildcard, common/spi, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/STM32_USB_Device_Library/Core, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/STM32_USB_OTG_Driver, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/STM32F4xx_StdPeriph_Driver, *.c *.S *.s)

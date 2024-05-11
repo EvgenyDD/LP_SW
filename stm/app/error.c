@@ -1,16 +1,29 @@
 #include "error.h"
 
-static uint8_t errors[ERROR_COUNT / 8 + ((ERROR_COUNT % 8) ? 1 : 0)] = {0};
+static volatile uint32_t errors = 0, errors_latched = 0;
 
 void error_set(uint32_t error, bool value)
 {
 	if(value)
-		errors[error / 8] |= (1 << (error % 8));
+	{
+		errors |= 1 << error;
+		errors_latched |= 1 << error;
+	}
 	else
-		errors[error / 8] &= ~(1 << (error % 8));
+	{
+		errors &= (uint32_t) ~(1 << error);
+	}
 }
 
-bool error_get(uint32_t error)
+uint32_t error_get(void) { return errors; }
+uint32_t error_get_latched(void) { return errors_latched; }
+
+const char *error_get_str(uint32_t error)
 {
-	return errors[error / 8] & (1 << (error % 8));
+	const char *s[] = {
+#define _F(x) #x
+		ERR_DESCR
+#undef _F
+	};
+	return s[error];
 }

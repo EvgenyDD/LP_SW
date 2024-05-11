@@ -1,6 +1,7 @@
 #ifndef I2C_COMMON_H__
 #define I2C_COMMON_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 
 void i2c_init(void);

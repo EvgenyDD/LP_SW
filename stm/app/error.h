@@ -4,11 +4,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define ERR_DESCR      \
-	_F(CFG),           \
-		_F(CFG_WR),    \
-		_F(FRAM_SIGN), \
-		_F(FRAM_WR),   \
+#define ERR_DESCR \
+	_F(CFG),      \
+		_F(FRAM), \
+		_F(RB),   \
+		_F(OT),   \
+		_F(PS),   \
+		_F(FAN),  \
+		_F(KEY),  \
+		_F(SFTY), \
 		_F(COUNT)
 enum
 {
@@ -17,9 +21,9 @@ enum
 #undef _F
 };
 
-// #define ERROR_COUNT 3
-
 void error_set(uint32_t error, bool value);
-bool error_get(uint32_t error);
+uint32_t error_get(void);
+uint32_t error_get_latched(void);
+const char *error_get_str(uint32_t error);
 
 #endif // ERROR_H__

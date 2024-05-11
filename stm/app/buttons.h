@@ -7,6 +7,6 @@
 void buttons_init(void);
 void buttons_poll(uint32_t diff_ms);
 
-extern debounce_t btn_act[3], btn_jl, btn_jr, btn_jok, btn_ju, btn_jd;
+extern debounce_t btn_act[3], btn_jl, btn_jr, btn_jok, btn_ju, btn_jd, btn_emcy;
 
 #endif // BUTTONS_H__

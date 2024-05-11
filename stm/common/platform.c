@@ -185,3 +185,10 @@ const char *paltform_reset_cause_get(void)
 	RCC_ClearFlag();
 	return src;
 }
+
+float map(float x, float in_min, float in_max, float out_min, float out_max)
+{
+	if(x < in_min) x = in_min;
+	if(x > in_max) x = in_max;
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}

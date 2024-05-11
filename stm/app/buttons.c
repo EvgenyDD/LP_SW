@@ -2,7 +2,7 @@
 #include "debounce.h"
 #include "platform.h"
 
-debounce_t btn_act[3], btn_jl, btn_jr, btn_jok, btn_ju, btn_jd;
+debounce_t btn_act[3], btn_jl, btn_jr, btn_jok, btn_ju, btn_jd, btn_emcy;
 
 void buttons_init(void)
 {
@@ -31,6 +31,7 @@ void buttons_init(void)
 	debounce_init(&btn_jok, 2000);
 	debounce_init(&btn_ju, 2000);
 	debounce_init(&btn_jd, 2000);
+	debounce_init(&btn_emcy, 2000);
 }
 
 void buttons_poll(uint32_t diff_ms)
@@ -43,4 +44,5 @@ void buttons_poll(uint32_t diff_ms)
 	debounce_update(&btn_jok, !(GPIOC->IDR & (1 << 15)), diff_ms);
 	debounce_update(&btn_ju, !(GPIOC->IDR & (1 << 8)), diff_ms);
 	debounce_update(&btn_jd, !(GPIOC->IDR & (1 << 13)), diff_ms);
+	debounce_update(&btn_emcy, GPIOA->IDR & (1 << 8), diff_ms);
 }

@@ -1,22 +1,25 @@
+#include "../../common/proto.h"
 #include "adc.h"
 #include "buttons.h"
 #include "config_system.h"
 #include "crc.h"
 #include "error.h"
-#include "fan.h"
 #include "fram.h"
 #include "fw_header.h"
 #include "i2c_common.h"
 #include "i2c_display.h"
+#include "imu.h"
 #include "lsr_ctrl.h"
+#include "opt3001.h"
 #include "platform.h"
 #include "prof.h"
 #include "ret_mem.h"
+#include "safety.h"
+#include "serial.h"
+#include "ui.h"
 #include "usbd_proto_core.h"
 #include <stdio.h>
 #include <string.h>
-
-int gsts = -10;
 
 #define SYSTICK_IN_US (168000000 / 1000000)
 #define SYSTICK_IN_MS (168000000 / 1000)
@@ -54,9 +57,8 @@ static void end_loop(void)
 	platform_reset();
 }
 
-uint8_t addr_acked[128] = {0};
-uint32_t addr_count = 0;
 static char buffer[128];
+
 __attribute__((noreturn)) void main(void)
 {
 	RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
@@ -66,11 +68,7 @@ __attribute__((noreturn)) void main(void)
 	prof_init();
 	platform_watchdog_init();
 
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA |
-							   RCC_AHB1Periph_GPIOB |
-							   RCC_AHB1Periph_GPIOC |
-							   RCC_AHB1Periph_GPIOD,
-						   ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB | RCC_AHB1Periph_GPIOC | RCC_AHB1Periph_GPIOD, ENABLE);
 
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_7; // DCDC_FAULT, SNS_KEY
@@ -86,32 +84,20 @@ __attribute__((noreturn)) void main(void)
 
 	adc_init();
 	i2c_init();
-	for(uint32_t i = 0; i < 127; i++)
-	{
-		uint8_t data = 0;
-		if(i2c_read(i, &data, 1, false) == 0)
-		{
-			addr_acked[addr_count++] = i;
-		}
-	}
+
+	imu_init();
+	opt3001_init();
+
+	serial_init();
 
 	usb_init();
 
 	fan_init();
 
 	lsr_ctrl_init();
-	lsr_ctrl_init_enable(0);
-
 	i2c_display_init();
 	i2c_display_direction(DIRECTION0);
 	i2c_display_clear_screen(0);
-
-	fram_init();
-	int sts_fram = fram_check_sn();
-	if(sts_fram)
-	{
-	}
-	fram_data_read();
 
 	buttons_init();
 
@@ -136,84 +122,19 @@ __attribute__((noreturn)) void main(void)
 		adc_track();
 		buttons_poll(diff_ms);
 
-		static uint8_t upd_cnt, upd_cnt2;
-		upd_cnt += diff_ms;
-		upd_cnt2 += diff_ms;
-
+		safety_loop(diff_ms);
 		usb_poll(diff_ms);
+		ui_loop(diff_ms);
+		fan_track(diff_ms);
 
-		static uint32_t v = 50;
-		if(btn_act[0].state == BTN_PRESS_SHOT)
-		{
-			v += 50;
-			uint16_t raw[] = {0, 0, 0, 0, 0};
-			lsr_ctrl_direct_cmd(raw);
-		}
-		else if(btn_act[2].state == BTN_PRESS_SHOT)
-		{
-			v -= 50;
-			uint16_t raw[] = {4095, 4095, 0, 0, 0};
-			lsr_ctrl_direct_cmd(raw);
-		}
-		if(v > 1023) v = 1023;
+		error_set(ERROR_KEY, GPIOC->IDR & (1 << 7));
+		error_set(ERROR_FAN, fan_get_vel() == 0);
+		error_set(ERROR_PS, !(GPIOC->IDR & (1 << 3)));
+		error_set(ERROR_RB, (GPIOA->IDR & (1 << 8)));
 
-		if(upd_cnt2 >= 10)
-		{
-			upd_cnt2 = 0;
-			static uint32_t ph = 0;
-			if(++ph >= 4) ph = 0;
-			if(ph == 0)
-			{
-				uint16_t raw[] = {2048 + v, 2048 + v * 2, 0, 100, 0};
-				lsr_ctrl_direct_cmd(raw);
-			}
-			else if(ph == 1)
-			{
-				uint16_t raw[] = {2048 - v, 2048 + v * 2, 0, 100, 0};
-				lsr_ctrl_direct_cmd(raw);
-			}
-			else if(ph == 2)
-			{
-				uint16_t raw[] = {2048 - v, 2048 - v * 2, 0, 100, 0};
-				lsr_ctrl_direct_cmd(raw);
-			}
-			else if(ph == 3)
-			{
-				uint16_t raw[] = {2048 + v, 2048 - v * 2, 0, 100, 0};
-				lsr_ctrl_direct_cmd(raw);
-			}
-		}
-		if(upd_cnt >= 100)
-		{
-			upd_cnt = 0;
-
-			// static uint8_t upd_cnt2;
-			// if(++upd_cnt2 >= 25)
-			// {
-			// 	upd_cnt2 = 0;
-			// 	static uint8_t statee = 0;
-			// 	statee++;
-			// 	lsr_ctrl_init_enable(statee & 1);
-			// }
-
-			static uint16_t cntr = 0;
-			sprintf(buffer, "%.2fA", adc_val.i24);
-			i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
-
-			sprintf(buffer, "%.1fV", adc_val.vp24);
-			i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
-
-			sprintf(buffer, "%.1fV", adc_val.vm24);
-			i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
-
-			sprintf(buffer, "%.1fV", adc_val.vin);
-			i2c_display_display_text(3, 0, buffer, strlen(buffer), false);
-
-			sprintf(buffer, "%x", cntr++);
-			i2c_display_display_text(4, 0, buffer, strlen(buffer), false);
-
-			sprintf(buffer, "V:%ld ", v);
-			i2c_display_display_text(5, 0, buffer, strlen(buffer), false);
-		}
+		// (ERROR_SFTY)
+		// (ERROR_CFG)
+		// (ERROR_FRAM)
+		// (ERROR_OT)
 	}
 }

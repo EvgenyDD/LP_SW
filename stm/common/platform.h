@@ -46,6 +46,8 @@ const char *paltform_reset_cause_get(void);
 
 static inline bool is_emcy_btn_act(void) { return GPIOA->IDR & (1 << 8); }
 
+float map(float x, float in_min, float in_max, float out_min, float out_max);
+
 extern int __preldr_start, __preldr_end;
 extern int __ldr_start, __ldr_end;
 extern int __cfg_start, __cfg_end;

@@ -1,2 +1,6 @@
-void temp(void);
-void temp(void) {}
+#include "serial.h"
+#include "platform.h"
+
+void serial_init(void)
+{
+}
