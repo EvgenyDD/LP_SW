@@ -78,7 +78,7 @@ void lsr_ctrl_init_disable(void)
 	GPIO_Init(GPIOC, &GPIO_InitStructure);
 }
 
-void lsr_ctrl_init_enable(int x)
+void lsr_ctrl_init_enable(void)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11; // LP_CNT

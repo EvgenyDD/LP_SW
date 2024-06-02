@@ -4,6 +4,7 @@
 #include <string.h>
 
 #if FW_TYPE == FW_APP
+#include "safety.h"
 extern void i2c_display_clear_screen(bool invert);
 #endif
 
@@ -130,6 +131,7 @@ __attribute__((noreturn)) void platform_reset(void)
 {
 #if FW_TYPE == FW_APP
 	i2c_display_clear_screen(0);
+	safety_disable();
 #else
 	ret_mem_set_bl_stuck(false);
 #endif

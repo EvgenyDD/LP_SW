@@ -13,6 +13,7 @@
 #include "opt3001.h"
 #include "platform.h"
 #include "prof.h"
+#include "proto_l0.h"
 #include "ret_mem.h"
 #include "safety.h"
 #include "serial.h"
@@ -57,8 +58,6 @@ static void end_loop(void)
 	platform_reset();
 }
 
-static char buffer[128];
-
 __attribute__((noreturn)) void main(void)
 {
 	RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
@@ -88,8 +87,6 @@ __attribute__((noreturn)) void main(void)
 	imu_init();
 	opt3001_init();
 
-	serial_init();
-
 	usb_init();
 
 	fan_init();
@@ -102,6 +99,7 @@ __attribute__((noreturn)) void main(void)
 	buttons_init();
 
 	if(config_validate() == CONFIG_STS_OK) config_read_storage();
+	serial_init();
 
 	for(;;)
 	{
@@ -127,14 +125,24 @@ __attribute__((noreturn)) void main(void)
 		ui_loop(diff_ms);
 		fan_track(diff_ms);
 
-		error_set(ERROR_KEY, GPIOC->IDR & (1 << 7));
-		error_set(ERROR_FAN, fan_get_vel() == 0);
-		error_set(ERROR_PS, !(GPIOC->IDR & (1 << 3)));
-		error_set(ERROR_RB, GPIOA->IDR & (1 << 8));
+		proto_poll();
 
-		// (ERROR_SFTY)
-		// (ERROR_CFG)
-		// (ERROR_FRAM)
-		// (ERROR_OT)
+		static uint32_t tick_ms_sts_send = 0;
+		tick_ms_sts_send += diff_ms;
+		if(tick_ms_sts_send >= 100)
+		{
+			tick_ms_sts_send = 0;
+			proto_send_status();
+		}
+
+		static uint32_t tick_ms_poll_dev = 0;
+		tick_ms_poll_dev += diff_ms;
+		if(tick_ms_poll_dev >= 25)
+		{
+			opt3001_read();
+			imu_read();
+		}
+
+		serial_rx_check();
 	}
 }

@@ -1,5 +1,5 @@
-#ifndef USB_PROTO_VEND_H__
-#define USB_PROTO_VEND_H__
+#ifndef USB_proto_VEND_H__
+#define USB_proto_VEND_H__
 
 #include "usb_core.h"
 #include <stdbool.h>
@@ -9,4 +9,4 @@ bool usbd_proto_is_idle(void);
 void usbd_proto_vendor_tx_sent(void *pdev);
 void usbd_proto_vendor_rx_received(void *pdev);
 
-#endif // USB_PROTO_VEND_H__
+#endif // USB_proto_VEND_H__

@@ -2,12 +2,12 @@
 #include "debounce.h"
 #include "platform.h"
 
-debounce_t btn_act[3], btn_jl, btn_jr, btn_jok, btn_ju, btn_jd, btn_emcy;
+debounce_t btn_act[3], btn_jl, btn_jr, btn_jok, btn_ju, btn_jd, btn_emcy, sd_detect_debounce;
 
 void buttons_init(void)
 {
 	GPIO_InitTypeDef GPIO_InitStruct = {0};
-	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_5;
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_5 | GPIO_Pin_8 /* SD detect */;
 	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN;
 	GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;
@@ -32,6 +32,7 @@ void buttons_init(void)
 	debounce_init(&btn_ju, 2000);
 	debounce_init(&btn_jd, 2000);
 	debounce_init(&btn_emcy, 2000);
+	debounce_init(&sd_detect_debounce, 2000);
 }
 
 void buttons_poll(uint32_t diff_ms)
@@ -45,4 +46,5 @@ void buttons_poll(uint32_t diff_ms)
 	debounce_update(&btn_ju, !(GPIOC->IDR & (1 << 8)), diff_ms);
 	debounce_update(&btn_jd, !(GPIOC->IDR & (1 << 13)), diff_ms);
 	debounce_update(&btn_emcy, GPIOA->IDR & (1 << 8), diff_ms);
+	debounce_update(&sd_detect_debounce, !(GPIOB->IDR & (1 << 8)), diff_ms);
 }

@@ -12,7 +12,7 @@
 #define ILDA_FMT_3D_TRUE 4
 #define ILDA_FMT_2D_TRUE 5
 
-enum
+typedef enum
 {
 	ILDA_ERR_CHUNK_OVF = -10,
 	ILDA_ERR_NO_ILDA_HDR,
@@ -60,7 +60,7 @@ typedef struct /*__attribute__((packed))*/
 	uint16_t pallete_size;
 	bool pallete_present;
 
-	uint32_t max_point_per_frame; // for debug
+	uint32_t max_point_per_frame; // debug
 	int fpos;					  // debug
 
 	ilda_header_t header;
@@ -93,6 +93,7 @@ typedef struct __attribute__((packed))
 
 void ilda_file_init(ilda_t *ilda);
 void ilda_file_free(ilda_t *ilda);
+int ilda_file_read(const char *data, uint32_t fsize, ilda_t *ilda, bool use_64_color_table);
 int ilda_file_parse_chunk(ilda_t *ilda, const uint8_t *buf, uint32_t size, bool use_64_color_table);
 int ilda_file_parse_file(ilda_t *ilda, uint8_t *buf, uint32_t size, bool use_64_color_table);
 

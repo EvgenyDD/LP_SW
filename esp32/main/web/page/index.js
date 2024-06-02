@@ -103,13 +103,28 @@ function getCookie(cname) {
 function rt_data_cb(resp) {
     // console.log("resp rcv: " + resp);
     const obj = JSON.parse(resp);
-    document.getElementById("rtd_vi").innerHTML = (obj.v_i * 0.001).toFixed(1) + " V";
-    document.getElementById("rtd_vinv").innerHTML = (obj.v_p * 0.001).toFixed(1) + " / " + (obj.v_n * 0.001).toFixed(1) + " V";
-    document.getElementById("rtd_ip").innerHTML = (obj.i_p * 0.001).toFixed(1) + " A";
-    document.getElementById("rtd_p").innerHTML = (obj.v_i * obj.i_p * 0.000001).toFixed(1) + " W";
-    document.getElementById("rtd_tdrv").innerHTML = (obj.t_drv * .1).toFixed(0) + " °C";
-    document.getElementById("rtd_inv").innerHTML = (obj.t_inv_p * .1).toFixed(0) + "/" + (obj.t_inv_n * .1).toFixed(0) + " °C";
-    document.getElementById("rtd_lsr").innerHTML = (obj.t_lsr * .1).toFixed(0) + " °C";
+    document.getElementById("rtd_u_i").innerHTML = (obj.u_in * 0.001).toFixed(1) + " V";
+    document.getElementById("rtd_u_inv").innerHTML = (obj.u_p24 * 0.001).toFixed(1) + " / " + (obj.u_n24 * 0.001).toFixed(1) + " V";
+    document.getElementById("rtd_i_24").innerHTML = (obj.i_24 * 0.001).toFixed(1) + " A";
+    document.getElementById("rtd_p").innerHTML = (obj.u_p24 * obj.i_24 * 0.000001).toFixed(1) + " W";
+    document.getElementById("rtd_t_amp").innerHTML = (obj.t_amp * .1).toFixed(0) + " °C";
+    document.getElementById("rtd_t_inv").innerHTML = (obj.t_inv_p * .1).toFixed(0) + "/" + (obj.t_inv_n * .1).toFixed(0) + " °C";
+    document.getElementById("rtd_t_head").innerHTML = (obj.t_head * .1).toFixed(0) + " °C";
+    document.getElementById("rtd_t_stm").innerHTML = (obj.t_stm * .1).toFixed(0) + " °C";
+
+    document.getElementById("rtd_fan").innerHTML = (obj.fan).toFixed(0) + " RPM";
+    document.getElementById("rtd_lum").innerHTML = (obj.lum).toFixed(0) + " Lux";
+
+    document.getElementById("rtd_stm_err").innerHTML = obj.stm_err + "/" + obj.stm_err_l;
+
+    document.getElementById("rtd_xlx").innerHTML = (obj.xlx * 0.001).toFixed(3) + " G";
+    document.getElementById("rtd_xly").innerHTML = (obj.xly * 0.001).toFixed(3) + " G";
+    document.getElementById("rtd_xlz").innerHTML = (obj.xlz * 0.001).toFixed(3) + " G";
+
+    document.getElementById("rtd_gx").innerHTML = (obj.gx * 0.001).toFixed(3) + " °";
+    document.getElementById("rtd_gy").innerHTML = (obj.gy * 0.001).toFixed(3) + " °";
+    document.getElementById("rtd_gz").innerHTML = (obj.gz * 0.001).toFixed(3) + " °";
+
     if (obj.hasOwnProperty("console")) {
         logAppend(obj.console);
     }
