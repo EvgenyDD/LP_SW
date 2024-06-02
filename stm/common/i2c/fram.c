@@ -1,4 +1,5 @@
 #include "fram.h"
+#include "error.h"
 #include "i2c_common.h"
 #include <string.h>
 
@@ -6,9 +7,13 @@
 
 #define I2C_FM24LC16B_ADDR 0x50 // base address
 
-#define CHK(x) \
-	sts = x;   \
-	if(sts) return sts;
+#define CHK(x)                      \
+	sts = x;                        \
+	if(sts)                         \
+	{                               \
+		error_set(ERR_STM_FRAM, 1); \
+		return sts;                 \
+	}
 
 static int sts = 0;
 

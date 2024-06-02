@@ -71,8 +71,16 @@ int main(int argc, char **argv)
 {
 	uint32_t biggest_point_count = 0;
 
+// int s = strncmp("console?al", "con",3 );
+// char *che = strstr("console?al", "8on");
+// 	printf("AAAAAAA %d %c\n", s, *che);
+// 	return 2;
+
 	struct dirent *dir;
-	DIR *d = opendir(argv[1]);
+	// const char *src = argv[1];
+	const char *src = "../../ilda_files/";
+	DIR *d = opendir(src);
+	int fc = 0;
 	if(d)
 	{
 		while((dir = readdir(d)) != NULL)
@@ -83,23 +91,52 @@ int main(int argc, char **argv)
 				{
 					char *buf = NULL;
 					size_t buf_size = 0;
-					S(argc == 1);
+					// S(argc == 1);
 					char fname[1024];
-					strcpy(fname, argv[1]);
+					strcpy(fname, src);
 					strcat(fname, dir->d_name);
 					S(get_buf_from_file(fname, &buf, &buf_size));
-					printf("\tFile %s: %d bytes ", fname, buf_size);
-					ilda_t i;
-					int sts = ilda_file_read(buf, buf_size, &i, true * 0);
+					printf("\tFile %s: %ld bytes ", fname, buf_size);
+#if 1
+					ilda_t i = {0};
+					for(uint32_t of = 0;;)
+					{
+#define CHNK (ILDA_FILE_CHUNK / 2)
+						int sts = ilda_file_parse_chunk(&i, (uint8_t *)&buf[of], buf_size - of >= CHNK ? CHNK : buf_size - of, true * 0);
+						if(sts != 0)
+						{
+							printf("[E]\tFailed: %d\n", sts);
+							return sts;
+						}
+						of += buf_size - of >= CHNK ? CHNK : buf_size - of;
+						if(of >= buf_size)
+						{
+							sts = ilda_file_parse_chunk(&i, NULL, 0, true * 0);
+							if(sts != 0)
+							{
+								printf("[E]\tFailed: %d\n", sts);
+								return sts;
+							}
+							break;
+						}
+					}
+#else
+					ilda_t i = {0};
+					int sts = ilda_file_parse_file(&i, (uint8_t *)buf, buf_size, true * 0);
+					if(sts != 0)
+					{
+						printf("[E]\tFailed: %d\n", sts);
+						return sts;
+					}
+#endif
 					printf("\t\t%d frames %d points\n", i.frame_count, i.point_count);
 					if(i.max_point_per_frame > biggest_point_count) biggest_point_count = i.max_point_per_frame;
-					// if(sts == 0) printf("64-color fmt\n");
-					if(sts == -4) sts = ilda_file_read(buf, buf_size, &i, false);
-					if(sts != 0) printf("[E]\tFailed: %d\n", sts);
 					FREE_PTR(buf);
 					ilda_file_free(&i);
 				} while(0);
+				fc++;
 			}
+			// if(fc >= 8) break;
 		}
 		closedir(d);
 	}

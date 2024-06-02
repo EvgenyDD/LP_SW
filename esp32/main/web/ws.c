@@ -12,6 +12,7 @@
 #include "lwip/err.h"
 #include "lwip/netdb.h"
 #include "lwip/sys.h"
+#include "proto_l0.h"
 #include <esp_event.h>
 #include <esp_http_server.h>
 #include <esp_log.h>
@@ -27,8 +28,6 @@ extern void start_dns_server(void);
 
 extern const char root_start[] asm("_binary_index_html_start");
 extern const char root_end[] asm("_binary_index_html_end");
-
-#define TAG "WS"
 
 char ws_console_buffer[512];
 uint32_t ws_console_ptr = 0;
@@ -47,7 +46,7 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 {
 	const uint32_t root_len = root_end - root_start;
 
-	ESP_LOGI(TAG, "Serve root");
+	ESP_LOGI("WS", "Serve root");
 	httpd_resp_set_type(req, "text/html");
 	httpd_resp_send(req, root_start, root_len);
 
@@ -59,14 +58,27 @@ static esp_err_t rtd_get_handler(httpd_req_t *req)
 	httpd_resp_set_type(req, "application/json");
 	cJSON *root = cJSON_CreateObject();
 
-	cJSON_AddNumberToObject(root, "i_p", /*adc_val.i_p*/ 0);
-	cJSON_AddNumberToObject(root, "v_p", /*adc_val.v_p*/ 1);
-	cJSON_AddNumberToObject(root, "v_n", /*adc_val.v_n*/ 2);
-	cJSON_AddNumberToObject(root, "v_i", /*adc_val.v_i*/ 3);
-	cJSON_AddNumberToObject(root, "t_drv", 0 /*adc_val.t_drv*/);
-	cJSON_AddNumberToObject(root, "t_inv_p", 0 /*adc_val.t_inv_p*/);
-	cJSON_AddNumberToObject(root, "t_inv_n", 0 /*adc_val.t_inv_n*/);
-	cJSON_AddNumberToObject(root, "t_lsr", 0 /*adc_val.t_lsr_head*/);
+	cJSON_AddNumberToObject(root, "i_24", (int)(stm_sts.i_24 * 1000.0f));
+	cJSON_AddNumberToObject(root, "u_p24", (int)(stm_sts.u_p24 * 1000.0f));
+	cJSON_AddNumberToObject(root, "u_n24", (int)(stm_sts.u_n24 * 1000.0f));
+	cJSON_AddNumberToObject(root, "u_in", (int)(stm_sts.u_in * 1000.0f));
+	cJSON_AddNumberToObject(root, "t_amp", (int)(stm_sts.t_amp * 10.0f));
+	cJSON_AddNumberToObject(root, "t_inv_p", (int)(stm_sts.t[0] * 10.0f));
+	cJSON_AddNumberToObject(root, "t_inv_n", (int)(stm_sts.t[1] * 10.0f));
+	cJSON_AddNumberToObject(root, "t_head", (int)(stm_sts.t_head * 10.0f));
+	cJSON_AddNumberToObject(root, "t_stm", (int)(stm_sts.t_mcu * 10.0f));
+	cJSON_AddNumberToObject(root, "fan", (int)stm_sts.vel_fan);
+	cJSON_AddNumberToObject(root, "lum", (int)stm_sts.lum);
+	cJSON_AddNumberToObject(root, "stm_boot", stm_sts.in_boot);
+	cJSON_AddNumberToObject(root, "stm_err", stm_sts.err);
+	cJSON_AddNumberToObject(root, "stm_err_l", stm_sts.err_latched);
+	cJSON_AddNumberToObject(root, "xlx", (int)(stm_sts.xl[0] * 1000.0f));
+	cJSON_AddNumberToObject(root, "xly", (int)(stm_sts.xl[1] * 1000.0f));
+	cJSON_AddNumberToObject(root, "xlz", (int)(stm_sts.xl[2] * 1000.0f));
+	cJSON_AddNumberToObject(root, "gx", (int)(stm_sts.g[0] * 1000.0f));
+	cJSON_AddNumberToObject(root, "gy", (int)(stm_sts.g[1] * 1000.0f));
+	cJSON_AddNumberToObject(root, "gz", (int)(stm_sts.g[2] * 1000.0f));
+
 	if(ws_console_ptr)
 	{
 		cJSON_AddStringToObject(root, "console", ws_console_buffer);
@@ -129,45 +141,31 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 	// iOS requires content in the response to detect a captive portal, simply redirecting is not sufficient.
 	httpd_resp_send(req, "Redirect to the home", HTTPD_RESP_USE_STRLEN);
 
-	ESP_LOGI(TAG, "Redirecting to root");
+	ESP_LOGI("WS", "Redirecting to root");
 	return ESP_OK;
 }
 
 void ws_init(void)
 {
-	// #ifdef CONFIG_EXAMPLE_CONNECT_WIFI
-	// ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
-	// ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_AP_STAIPASSIGNED, &connect_handler, &server));
-	// ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
-	// #endif // CONFIG_EXAMPLE_CONNECT_WIFI
-	// #ifdef CONFIG_EXAMPLE_CONNECT_ETHERNET
-	// 	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &connect_handler, &server));
-	// 	ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &disconnect_handler, &server));
-	// #endif // CONFIG_EXAMPLE_CONNECT_ETHERNET
-
-	// start webserver
-	httpd_handle_t server = NULL;
+	httpd_handle_t web_server = NULL;
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 	config.max_open_sockets = 7;
 	config.lru_purge_enable = true;
 
-	// Start the httpd server
-	ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
-	if(httpd_start(&server, &config) == ESP_OK)
+	ESP_LOGI("WS", "Starting httpd server on port: '%d'", config.server_port);
+	if(httpd_start(&web_server, &config) == ESP_OK)
 	{
-		// Set URI handlers
-		ESP_LOGI(TAG, "Registering URI handlers");
-		httpd_register_uri_handler(server, &root);
-		httpd_register_uri_handler(server, &rtd);
-		httpd_register_uri_handler(server, &cmd);
-		httpd_register_uri_handler(server, &console);
-		httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
+		ESP_LOGI("WS", "Registering URI handlers");
+		httpd_register_uri_handler(web_server, &root);
+		httpd_register_uri_handler(web_server, &rtd);
+		httpd_register_uri_handler(web_server, &cmd);
+		httpd_register_uri_handler(web_server, &console);
+		httpd_register_err_handler(web_server, HTTPD_404_NOT_FOUND, http_404_error_handler);
 	}
 	else
 	{
-		ESP_LOGE(TAG, "httpd_start failed");
+		ESP_LOGE("WS", "httpd_start failed");
 	}
 
-	// Start DNS server
 	// start_dns_server();
 }

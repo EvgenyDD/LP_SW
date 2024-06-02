@@ -4,12 +4,8 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
+#include "lc_udp.c"
 #include "lwip/netif.h"
-
-#define TAG "ETH"
-
-void lan_set_default_netif(void);
-void wifi_set_default_netif(void);
 
 static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -20,17 +16,17 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t ev
 	{
 	case ETHERNET_EVENT_CONNECTED:
 		esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
-		ESP_LOGI(TAG, "Ethernet Link Up | MAC %02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+		ESP_LOGI("ETH", "Ethernet Link Up | MAC %02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 		lan_set_default_netif();
 		break;
 
 	case ETHERNET_EVENT_DISCONNECTED:
-		ESP_LOGI(TAG, "Ethernet Link Down");
+		ESP_LOGI("ETH", "Ethernet Link Down");
 		wifi_set_default_netif();
 		break;
 
-	case ETHERNET_EVENT_START: ESP_LOGI(TAG, "Ethernet Started"); break;
-	case ETHERNET_EVENT_STOP: ESP_LOGI(TAG, "Ethernet Stopped"); break;
+	case ETHERNET_EVENT_START: ESP_LOGI("ETH", "Ethernet Started"); break;
+	case ETHERNET_EVENT_STOP: ESP_LOGI("ETH", "Ethernet Stopped"); break;
 	default: break;
 	}
 }
@@ -38,7 +34,7 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t ev
 static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
 	const ip_event_got_ip_t *event = (const ip_event_got_ip_t *)event_data;
-	ESP_LOGI(TAG, "Got IP: " IPSTR ", mask: " IPSTR ", gw: " IPSTR, IP2STR(&event->ip_info.ip), IP2STR(&event->ip_info.netmask), IP2STR(&event->ip_info.gw));
+	ESP_LOGI("ETH", "Got IP: " IPSTR ", mask: " IPSTR ", gw: " IPSTR, IP2STR(&event->ip_info.ip), IP2STR(&event->ip_info.netmask), IP2STR(&event->ip_info.gw));
 }
 
 void lan_init(void)
@@ -94,13 +90,14 @@ void lan_set_default_netif(void)
 		if(pri->name[0] == 'e' &&
 		   pri->name[1] == 'n')
 		{
-			ESP_LOGI(TAG, "Set default NETIF %c%c%d (" IPSTR "/" IPSTR " gateway " IPSTR ")",
+			ESP_LOGI("ETH", "Set default LAN NETIF %c%c%d (" IPSTR "/" IPSTR " gateway " IPSTR ")",
 					 pri->name[0],
 					 pri->name[1],
 					 pri->num,
 					 IP2STR(&pri->ip_addr.u_addr.ip4),
 					 IP2STR(&pri->netmask.u_addr.ip4),
 					 IP2STR(&pri->gw.u_addr.ip4));
+			lc_set_addr_self_lan_srv(pri->ip_addr.u_addr.ip4.addr);
 			netif_set_default(pri);
 			break;
 		}
@@ -111,18 +108,34 @@ void lan_set_default_netif(void)
 void wifi_set_default_netif(void)
 {
 	esp_wifi_start();
+
 	for(struct netif *pri = netif_list; pri != NULL; pri = pri->next)
 	{
 		if(pri->name[0] == 'a' &&
 		   pri->name[1] == 'p')
 		{
-			ESP_LOGI(TAG, "Set default NETIF %c%c%d (" IPSTR "/" IPSTR " gateway " IPSTR ")",
+			ESP_LOGI("ETH", "Set default WIFI ap NETIF %c%c%d (" IPSTR "/" IPSTR " gateway " IPSTR ")",
 					 pri->name[0],
 					 pri->name[1],
 					 pri->num,
 					 IP2STR(&pri->ip_addr.u_addr.ip4),
 					 IP2STR(&pri->netmask.u_addr.ip4),
 					 IP2STR(&pri->gw.u_addr.ip4));
+			lc_set_addr_self_wifi_ap(pri->ip_addr.u_addr.ip4.addr);
+			netif_set_default(pri);
+			break;
+		}
+		if(pri->name[0] == 's' &&
+		   pri->name[1] == 't')
+		{
+			ESP_LOGI("ETH", "Set default WIFI sta NETIF %c%c%d (" IPSTR "/" IPSTR " gateway " IPSTR ")",
+					 pri->name[0],
+					 pri->name[1],
+					 pri->num,
+					 IP2STR(&pri->ip_addr.u_addr.ip4),
+					 IP2STR(&pri->netmask.u_addr.ip4),
+					 IP2STR(&pri->gw.u_addr.ip4));
+			lc_set_addr_self_wifi_sta(pri->ip_addr.u_addr.ip4.addr);
 			netif_set_default(pri);
 			break;
 		}

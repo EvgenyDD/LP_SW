@@ -7,6 +7,7 @@
 #include "lsr_ctrl.h"
 #include "opt3001.h"
 #include "platform.h"
+#include "proto_l0.h"
 #include "safety.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -57,53 +58,75 @@ static void chng_menu(ui_item_t *item)
 	i2c_display_clear_screen(false);
 }
 
+static bool is_err(void)
+{
+	return (esp_sts.err & (uint32_t) ~(1 << ERR_ESP_SFTY)) || error_get();
+}
+
 void cb_info1(bool redraw, ui_item_t *current)
 {
 	if(redraw)
 	{
 		sprintf(buffer, "%s", current->text);
-		i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 
-		sprintf(buffer, "I %.2fA", adc_val.i24);
+		sprintf(buffer, "I %.1fV  ", adc_val.vin);
 		i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "I %.1fV", adc_val.vin);
+		sprintf(buffer, "  %.2fA  ", adc_val.i24);
 		i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "P %.1fW", adc_val.vin * adc_val.i24);
+		sprintf(buffer, "P %.1fW  ", adc_val.vp24 * adc_val.i24);
 		i2c_display_display_text(3, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "O %.1fV", adc_val.vp24);
+		sprintf(buffer, "O %+.1fV  ", adc_val.vp24);
 		i2c_display_display_text(5, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "O %.1fV", adc_val.vm24);
+		sprintf(buffer, "O %+.1fV  ", adc_val.vn24);
 		i2c_display_display_text(6, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "t %d %d ", (int)adc_val.t[0], (int)adc_val.t[1]);
+		sprintf(buffer, "t %.0f %.0f  ", adc_val.t[0], adc_val.t[1]);
 		i2c_display_display_text(8, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "t %d %d ", (int)adc_val.t[2], (int)adc_val.t[3]);
+		sprintf(buffer, "t %.0f %.0f  ", adc_val.t_amp, adc_val.t_head);
 		i2c_display_display_text(9, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "FAN %.0fHz ", fan_get_vel());
+		sprintf(buffer, "FAN %.0f  ", fan_get_vel());
 		i2c_display_display_text(11, 0, buffer, strlen(buffer), false);
 
 		uint32_t j = 0;
-		for(uint32_t i = 0; i < ERROR_COUNT; i++)
+		if(esp_sts.err)
+		{
+			sprintf(buffer, " x%lx          ", (uint32_t)esp_sts.err);
+			i2c_display_display_text(12 + j++, 0, buffer, strlen(buffer), false);
+		}
+		for(uint32_t i = 0; i < ERR_STM_COUNT; i++)
 		{
 			if(error_get() & (1 << i))
 			{
-				sprintf(buffer, "%s      ", error_get_str(i));
+				sprintf(buffer, "%s          ", error_get_str(i));
 				i2c_display_display_text(12 + j++, 0, buffer, strlen(buffer), false);
+			}
+		}
+		for(uint32_t i = 0; i < ERR_STM_COUNT; i++)
+		{
+			if((error_get_latched() & (1 << i)) &&
+			   !(error_get() & (1 << i)))
+			{
+				sprintf(buffer, "%s          ", error_get_str(i));
+				i2c_display_display_text(12 + j++, 0, buffer, strlen(buffer), true);
 			}
 		}
 
 		for(; j < 6; j++)
 		{
-			sprintf(buffer, "      ");
+			sprintf(buffer, "         ");
 			i2c_display_display_text(12 + j, 0, buffer, strlen(buffer), false);
 		}
 	}
+
+	if(btn_act[0].state & BTN_PRESS && btn_act[2].state & BTN_PRESS)
+		safety_reset_lock();
 
 	if(btn_act[1].state == BTN_PRESS_SHOT)
 		chng_menu(cur->next);
@@ -114,14 +137,12 @@ void cb_info2(bool redraw, ui_item_t *current)
 	if(redraw)
 	{
 		sprintf(buffer, "%s", current->text);
-		i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 
-		opt3001_read();
-		sprintf(buffer, opt3001_lux < 100 ? "%.2f Lx  " : "%.0fLx  ", opt3001_lux);
+		sprintf(buffer, opt3001_lux < 100 ? "%.2f Lx     " : "%.0fLx     ", opt3001_lux);
 		i2c_display_display_text(8, 0, buffer, strlen(buffer), false);
 
 		const char axes[3] = "xyz";
-		imu_read();
 		for(uint32_t i = 0; i < 3; i++)
 		{
 			sprintf(buffer, "%c%+6.1f ", axes[i], imu_val.g[i]);
@@ -133,9 +154,6 @@ void cb_info2(bool redraw, ui_item_t *current)
 			i2c_display_display_text(13 + i, 0, buffer, strlen(buffer), false);
 		}
 	}
-
-	if(btn_act[0].state & BTN_PRESS && btn_act[2].state & BTN_PRESS)
-		safety_reset_lock();
 
 	if(btn_act[1].state == BTN_PRESS_SHOT)
 		chng_menu(cur->next);
@@ -153,7 +171,7 @@ void cb_light(bool redraw, ui_item_t *current)
 	if(redraw)
 	{
 		sprintf(buffer, "%s", current->text);
-		i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 
 		for(uint32_t i = 0; i < 3; i++)
 		{
@@ -168,7 +186,7 @@ void cb_light(bool redraw, ui_item_t *current)
 	{
 		if(light_cmd != 1)
 		{
-			safety_enable();
+			safety_enable_power_and_ctrl();
 #if 0
 			uint16_t raw[] = {2048, 2048,
 							  (int32_t)gamma_256[values[0] * 255 / 100] * 4095 / 256,
@@ -180,6 +198,7 @@ void cb_light(bool redraw, ui_item_t *current)
 							  values[1] * 4095 / 100,
 							  values[2] * 4095 / 100};
 #endif
+			delay_ms(100); // ???
 			lsr_ctrl_direct_cmd(raw);
 			light_cmd = 1;
 		}
@@ -190,13 +209,16 @@ void cb_light(bool redraw, ui_item_t *current)
 		if(light_cmd != 0)
 		{
 			light_cmd = 0;
-			safety_disable();
+			uint16_t raw[] = {2048, 2048, 0, 0, 0};
+			lsr_ctrl_direct_cmd(raw);
+			delay_ms(100); // ???
+			safety_disable_power_and_ctrl();
 		}
 	}
 
 	if(btn_act[1].state == BTN_PRESS_SHOT)
 	{
-		safety_disable();
+		safety_disable_power_and_ctrl();
 		light_cmd = 2;
 		chng_menu(cur->next);
 	}
@@ -207,7 +229,7 @@ void cb_play(bool redraw, ui_item_t *current)
 	if(redraw)
 	{
 		sprintf(buffer, "%s", current->text);
-		i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 	}
 	if(btn_act[1].state == BTN_PRESS_SHOT)
 		chng_menu(cur->next);
@@ -218,7 +240,7 @@ void cb_sett(bool redraw, ui_item_t *current)
 	if(redraw)
 	{
 		sprintf(buffer, "%s", current->text);
-		i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 	}
 	if(btn_act[1].state == BTN_PRESS_SHOT)
 		chng_menu(cur->next);
@@ -229,7 +251,7 @@ void cb_journal(bool redraw, ui_item_t *current)
 	if(redraw)
 	{
 		sprintf(buffer, "%s", current->text);
-		i2c_display_display_text(0, 0, buffer, strlen(buffer), false);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 	}
 	if(btn_act[1].state == BTN_PRESS_SHOT)
 		chng_menu(cur->next);

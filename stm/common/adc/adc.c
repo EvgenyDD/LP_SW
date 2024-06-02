@@ -1,7 +1,7 @@
 #include "adc.h"
 #include "stm32f4xx.h"
 
-#define SAMPLE_ACC_COUNT 128
+#define SAMPLE_ACC_COUNT 16
 
 #define VREFINT_CAL_ADDR 0x1FFF7A2A
 #define TS_CAL1_ADDR 0x1FFF7A2C
@@ -20,8 +20,8 @@ enum
 	ADC_CH_VM24,
 	ADC_CH_T0,
 	ADC_CH_T1,
-	ADC_CH_T2,
-	ADC_CH_T3,
+	ADC_CH_T_AMP,
+	ADC_CH_T_HEAD,
 	ADC_CH_T_MCU,
 	ADC_CH_VREFINT,
 	ADC_CH,
@@ -134,14 +134,14 @@ void adc_init(void)
 	ADC_InitStructure.ADC_NbrOfConversion = ADC_CH;
 	ADC_Init(ADC1, &ADC_InitStructure);
 
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_480Cycles); // PA0
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 2, ADC_SampleTime_480Cycles); // PA1
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 3, ADC_SampleTime_480Cycles); // PA2
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 4, ADC_SampleTime_480Cycles); // PA3
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 5, ADC_SampleTime_480Cycles); // PA5
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 6, ADC_SampleTime_480Cycles); // PA6
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_7, 7, ADC_SampleTime_480Cycles); // PA7
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 8, ADC_SampleTime_480Cycles); // PB0
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_480Cycles); // PA0 ADC_CH_VP24
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 2, ADC_SampleTime_480Cycles); // PA1 ADC_CH_VIN
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 3, ADC_SampleTime_480Cycles); // PA2 ADC_CH_I24
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 4, ADC_SampleTime_480Cycles); // PA3 ADC_CH_VM24
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 5, ADC_SampleTime_480Cycles); // PA5 ADC_CH_T0
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 6, ADC_SampleTime_480Cycles); // PA6 ADC_CH_T1
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_7, 7, ADC_SampleTime_480Cycles); // PA7 ADC_CH_T_AMP
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 8, ADC_SampleTime_480Cycles); // PB0 ADC_CH_T_HEAD
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_TempSensor, 9, ADC_SampleTime_480Cycles);
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 10, ADC_SampleTime_480Cycles);
 
@@ -181,15 +181,15 @@ void adc_track(void)
 	adc_val.i24 = buf_acc[ADC_CH_I24] * 2.5f / (4095.0f * 50.0f * 0.007f);
 
 	float v = buf_acc[ADC_CH_VM24];
-	adc_val.vm24 = -4.843335089f - 0.01487126977f * v + (2.369062861E-6f) * v * v;
+	adc_val.vn24 = -4.843335089f - 0.01487126977f * v + (2.369062861E-6f) * v * v;
 
 	adc_val.vp24 = buf_acc[ADC_CH_VP24] / 4095.0f * 3.3f * (1.0f + 33.0f / 2.0f);
 	adc_val.vin = buf_acc[ADC_CH_VIN] / 4095.0f * 3.3f * (1.0f + 33.0f / 2.0f);
 
-	adc_val.t[0] = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T0], NTC_COEF);
+	adc_val.t_head = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T0], NTC_COEF);
 	adc_val.t[1] = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T1], NTC_COEF);
-	adc_val.t[2] = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T2], NTC_COEF);
-	adc_val.t[3] = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T3], NTC_COEF);
+	adc_val.t_amp = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T_AMP], NTC_COEF);
+	adc_val.t[0] = NTC_TEMP_LO_SIDE(buf_acc[ADC_CH_T_HEAD], NTC_COEF);
 
 	adc_val.t_mcu = ((float)buf_acc[ADC_CH_T_MCU] * adcVREFINTCAL / (float)buf_acc[ADC_CH_VREFINT] - adcTSCAL1) * adcTSSlopeK + 30.0f;
 }

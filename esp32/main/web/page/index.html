@@ -154,9 +154,7 @@
         <div class="contentwrapper">
             <div class="tab">
                 <button class="tablinks" id="btn0" onclick="openTab(event, '1')"><img />Control</button>
-                <button class="tablinks" onclick="openTab(event, '2')"><img />Blockly</button>
-                <button class="tablinks" onclick="openTab(event, '3')"><img />Editor</button>
-                <button class="tablinks" onclick="openTab(event, '4')">/Info/</button>
+                <button class="tablinks" onclick="openTab(event, '2')">/Info/</button>
                 <button class="tablinks" onclick="openSettings()">CFG</button>
             </div>
 
@@ -173,31 +171,71 @@
                                     <table>
                                         <tr>
                                             <td style="background-color: #ddff00">U input</td>
-                                            <td id="rtd_vi"></td>
+                                            <td id="rtd_u_i"></td>
                                         </tr>
                                         <tr>
                                             <td style="background-color: #a4b538">U invertor</td>
-                                            <td id="rtd_vinv"></td>
+                                            <td id="rtd_u_inv"></td>
                                         </tr>
                                         <tr>
                                             <td style="background-color: #ff0000">I</td>
-                                            <td id="rtd_ip"></td>
+                                            <td id="rtd_i_24"></td>
                                         </tr>
                                         <tr>
                                             <td style="background-color: #ff00ee64">P</td>
                                             <td id="rtd_p"></td>
                                         </tr>
                                         <tr>
-                                            <td style="background-color: #00b7ff">T drv</td>
-                                            <td id="rtd_tdrv"></td>
+                                            <td style="background-color: #00b7ff">T DC/DC</td>
+                                            <td id="rtd_t_inv"></td>
                                         </tr>
                                         <tr>
-                                            <td style="background-color: #00b7ff">T invertor</td>
-                                            <td id="rtd_inv"></td>
+                                            <td style="background-color: #00b7ff">T amp</td>
+                                            <td id="rtd_t_amp"></td>
                                         </tr>
                                         <tr>
-                                            <td style="background-color: #00b7ff">T laser</td>
-                                            <td id="rtd_lsr"></td>
+                                            <td style="background-color: #00b7ff">T head</td>
+                                            <td id="rtd_t_head"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b7ff">T MCU</td>
+                                            <td id="rtd_t_stm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b7ff">FAN</td>
+                                            <td id="rtd_fan"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #d9ff00">Lum</td>
+                                            <td id="rtd_lum"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #ff1500">Err STM</td>
+                                            <td id="rtd_stm_err"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #ff0000a2">Accel: X</td>
+                                            <td id="rtd_xlx"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b463a9">Accel: Y</td>
+                                            <td id="rtd_xly"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #0400ff95">Accel: Z</td>
+                                            <td id="rtd_xlz"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #ff0000a2">Gyro: X</td>
+                                            <td id="rtd_gx"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #00b463a9">Gyro: Y</td>
+                                            <td id="rtd_gy"></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="background-color: #0400ff95">Gyro: Z</td>
+                                            <td id="rtd_gz"></td>
                                         </tr>
                                     </table>
 
@@ -211,31 +249,6 @@
                 </div>
 
                 <div id="2" class="tabcontent">
-                    <table id='bbox' style="height: 100%; width: 100%;">
-                        <tbody>
-                            <tr>
-                                <td id="blocklyArea" style="height:100%;background-color:gray;"></td>
-                                <td id="mid_td"
-                                    style="height:100%;width:0.4%;background:rgb(221, 221, 221);cursor:w-resize;display:none;">
-                                </td>
-                                <td id="side_code_parent" width="25%" valign='top'
-                                    style="background-color:rgb(238, 238, 238);display:none;">
-                                    <div id="monacoAreaBL" style="width:100%;height:100%;"></div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div id="3" class="tabcontent">
-                    <div id="HLayout">
-                        <div id="filetree_root" style="height: 100%;"></div>
-                        <div id="monacoArea" style="width: 100%;">
-                        </div>
-                    </div>
-                </div>
-
-                <div id="4" class="tabcontent">
                     <div id="messageLog" style="height: 90vh; overflow:scroll; color:black;"></div>
                 </div>
 

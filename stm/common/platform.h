@@ -48,6 +48,10 @@ static inline bool is_emcy_btn_act(void) { return GPIOA->IDR & (1 << 8); }
 
 float map(float x, float in_min, float in_max, float out_min, float out_max);
 
+void DMA2_Stream5_IRQHandler(void);
+void DMA2_Stream7_IRQHandler(void);
+void USART1_IRQHandler(void);
+
 extern int __preldr_start, __preldr_end;
 extern int __ldr_start, __ldr_end;
 extern int __cfg_start, __cfg_end;

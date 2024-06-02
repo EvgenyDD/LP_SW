@@ -31,7 +31,7 @@ const uint8_t gamma8[] = {
 
 struct
 {
-	bool fill_fb; // frame buffer
+	bool fill_fb;
 	int32_t min_c[2], max_c[2];
 	float max_br;
 } inst = {0};
@@ -45,10 +45,10 @@ void cb_ilda_point(ilda_t *ilda, const ilda_point_t *p)
 	if(inst.max_c[0] < p->x) inst.max_c[0] = p->x;
 	if(inst.max_c[1] < p->y) inst.max_c[1] = p->y;
 
-	if(inst.fill_fb)
-	{
-		lp_fb_append(p->x, p->y, gamma8[p->color[0]], gamma8[p->color[1]], gamma8[p->color[2]], 0.3f, 1.0f, 1000000 / fr);
-	}
+	// if(inst.fill_fb)
+	// {
+	// 	lp_fb_append(p->x, p->y, gamma8[p->color[0]], gamma8[p->color[1]], gamma8[p->color[2]], 0.3f, 1.0f, 1000000 / fr);
+	// }
 }
 
 void cb_ilda_frame(ilda_t *ilda, uint32_t count_points)
@@ -61,7 +61,6 @@ void cb_ilda_frame(ilda_t *ilda, uint32_t count_points)
 int ilda_check_file(const char *path)
 {
 	pnt_count = 0;
-	lp_fb_reinit();
 
 	inst.min_c[0] = inst.min_c[1] = inst.max_c[0] = inst.max_c[1] = 0;
 

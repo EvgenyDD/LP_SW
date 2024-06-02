@@ -2,9 +2,10 @@
 #define ANALOG_H__
 
 #include <stdint.h>
+
 typedef struct
 {
-	float vin, vp24, vm24, i24, t[4], t_mcu;
+	float vin, vp24, vn24, i24, t[2], t_amp, t_head, t_mcu;
 } adc_val_t;
 
 void adc_init(void);

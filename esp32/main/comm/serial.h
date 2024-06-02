@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 void serial_init(void);
-void serial_rx_check(void);
 
 void serial_tx(const uint8_t *data, uint32_t len);
 

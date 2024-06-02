@@ -4,33 +4,30 @@
 #include "soc/spi_reg.h"
 #include "soc/timer_group_reg.h"
 
-#define DELAY_CYCLES 63
+#define DELAY_CYCLES_SPI_TX_16B 63
 
-#define LDAC_BITMASK (1<<5)
+#define LDAC_BITMASK  (1<<5)
 #define COUNT_BITMASK (1<<13)
-
 
 // don't use a0/a1
 
-#define GPIO_W1TC_REG a2   // GPIO_OUT_W1TC_REG
-#define GPIO_W1TS_REG a3   // GPIO_OUT_W1TS_REG
-#define SPI_DATA a4        // /*SPI_W0_REG(1)*/ (DR_REG_SPI2_BASE) + 0x80
-#define SPI_CMD a5         // /*SPI_CMD_REG(1)*/DR_REG_SPI2_BASE
-#define SPI_CMD_USR a6     // SPI_USR_M
-    
-#define RA a15
-#define RB a14
-#define RC a13
+#define GPIO_W1TC_REG    a2   // GPIO_OUT_W1TC_REG
+#define GPIO_W1TS_REG    a3   // GPIO_OUT_W1TS_REG
+#define SPI_DATA         a4   // /*SPI_W0_REG(1)*/ (DR_REG_SPI2_BASE) + 0x80
+#define SPI_CMD          a5   // /*SPI_CMD_REG(1)*/DR_REG_SPI2_BASE
+#define SPI_CMD_USR      a6   // SPI_USR_M
 
-#define R_NEXT_VAL a12
-#define R_ARRAY a11
-#define R_PTR a10
+#define RA               a15
+#define RB               a14
+#define RC               a13
 
-
+#define R_NEXT_VAL       a12
+#define R_ARRAY          a11
+#define R_PTR            a10
 
 .data
 _l5_intr_stack:
-    .space      44
+    .space  44
 
 .macro delay_cycles delay
     movi.n  RC, \delay
@@ -65,35 +62,35 @@ decr\@:
 .endm
 
 .macro cs_l pin_mask
-    movi RA, \pin_mask
-    s32i RA, GPIO_W1TC_REG, 0
+    movi    RA, \pin_mask
+    s32i    RA, GPIO_W1TC_REG, 0
     memw
 .endm
 
 .macro cs_h pin_mask
-    movi RA, \pin_mask
-    s32i RA, GPIO_W1TS_REG, 0
+    movi    RA, \pin_mask
+    s32i    RA, GPIO_W1TS_REG, 0
     memw
 .endm
 
 .macro bin_cnt_pulse
-    cs_l (COUNT_BITMASK)
-    cs_h (COUNT_BITMASK)
+    cs_l    (COUNT_BITMASK)
+    cs_h    (COUNT_BITMASK)
 .endm
 
 .macro ldac_inv_pulse
-    movi RA, LDAC_BITMASK
-    s32i RA, GPIO_W1TC_REG, 0
+    movi    RA, LDAC_BITMASK
+    s32i    RA, GPIO_W1TC_REG, 0
     memw
     delay_cycles 5 // 100ns+
-    s32i RA, GPIO_W1TS_REG, 0
+    s32i    RA, GPIO_W1TS_REG, 0
     memw
 .endm
 
     .section .iram1, "ax"
-    .global     xt_highint5
-    .type       xt_highint5, @function
-    .align      4
+    .global xt_highint5
+    .type   xt_highint5, @function
+    .align  4
 
 xt_highint5:
     // save register values
@@ -110,7 +107,6 @@ xt_highint5:
     s32i    a14, a0, 36
     s32i    a15, a0, 40
 
-    
     // enable timer alarm
     movi    RA, TIMG_T0CONFIG_REG(0)
     l32i.n  RB, RA, 0
@@ -126,8 +122,20 @@ xt_highint5:
     s32i    RB, RA, 0
     memw
 
-    // gs_pnt_cur++
-    movi    RA, gs_pnt_cur 
+    // if(lpq_tail == lpq_head) { NO_NEW_FRAMES }
+    movi    RA, [lpq_tail]
+    memw
+    l32i    R_PTR, RA, 0
+    movi    RB, [lpq_head]
+    memw
+    l32i    RB, RB, 0
+    memw
+    movi.n  RC, 0
+    beq     R_PTR, RB, NEW_FRAMES_UNAVAIL
+    movi.n  RC, 1
+
+    // lpq_tail++
+    movi    RA, [lpq_tail]
     memw
     l32i    R_PTR, RA, 0
     addi.n  R_PTR, R_PTR, 1
@@ -135,8 +143,8 @@ xt_highint5:
     s32i.n  R_PTR, RA, 0
     memw
 
-    // if(gs_pnt_cur >= gs_pnt_cnt) gs_pnt_cur = 0;
-    movi    RB, gs_pnt_cnt 
+    // if(lpq_tail >= lpq_cnt) lpq_tail = 0;
+    movi    RB, [lpq_cnt]
     memw
     l32i    RB, RB, 0
     memw
@@ -148,14 +156,15 @@ xt_highint5:
     memw
 
 NOT_CLEAR_FRAME_CUR:
-    // R_PTR - gs_pnt_cur*6
-    slli    RA, R_PTR, 2     // *2
-    add.n   RA, RA, R_PTR    // +1
-    add.n   R_PTR, RA, R_PTR // +1
+NEW_FRAMES_UNAVAIL:
+
+    // R_PTR - lpq_tail*6
+    slli    RA, R_PTR, 2
+    add.n   RA, RA, R_PTR
+    add.n   R_PTR, RA, R_PTR
     memw
 
-
-// initialize registers
+    // initialize registers
     movi    SPI_DATA, (DR_REG_SPI2_BASE) + 0x80
     movi    SPI_CMD, DR_REG_SPI2_BASE
     movi    SPI_CMD_USR, SPI_USR_M
@@ -163,22 +172,8 @@ NOT_CLEAR_FRAME_CUR:
     movi    GPIO_W1TS_REG, GPIO_OUT_W1TS_REG
     memw
 
-// switch source
-    movi    RA, gs_sw
+    movi    R_ARRAY, lpq
     memw
-    l32i    RA, RA, 0
-    memw
-    beqz	RA, J_SRC1
-    j       J_SRC2
-
-J_SRC1:
-    movi    R_ARRAY, daq_presets2
-    memw
-    j       SRC_NEXT
-J_SRC2:
-    movi    R_ARRAY, daq_presets
-    memw
-SRC_NEXT:
 
     // set timer alarm value
     movi    RA, TIMG_T0ALARMLO_REG(0)
@@ -189,36 +184,34 @@ SRC_NEXT:
     s32i    RB, RA, 0
     memw
 
-    // Galvo - X
-    bin_cnt_pulse
-    spi_prepare 1 176 R_NEXT_VAL R_PTR R_ARRAY      // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    spi_load_and_start R_NEXT_VAL
-        spi_prepare 3 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    delay_cycles DELAY_CYCLES
+    beqz    RC, NO_NEW_FRAMES
 
-    // R channel
     bin_cnt_pulse
+    spi_prepare 1 176 R_NEXT_VAL R_PTR R_ARRAY    // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) Galvo - X
     spi_load_and_start R_NEXT_VAL
-        spi_prepare 2 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    delay_cycles DELAY_CYCLES
+        spi_prepare 5 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) B channel
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
 
-    // B channel
     bin_cnt_pulse
     spi_load_and_start R_NEXT_VAL
-        spi_prepare 4 176 R_NEXT_VAL R_PTR R_ARRAY // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    delay_cycles DELAY_CYCLES
+        spi_prepare 2 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) Galvo - Y
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
 
-    // Galvo - Y
     bin_cnt_pulse
     spi_load_and_start R_NEXT_VAL
-        spi_prepare 5 176 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
-    delay_cycles DELAY_CYCLES
+        spi_prepare 3 176 R_NEXT_VAL R_PTR R_ARRAY // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) R channel
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
 
-    // G channel
     bin_cnt_pulse
     spi_load_and_start R_NEXT_VAL
-    delay_cycles DELAY_CYCLES
+        spi_prepare 4 176 R_NEXT_VAL R_PTR R_ARRAY // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) G channel
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
 
+    bin_cnt_pulse
+    spi_load_and_start R_NEXT_VAL
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
+
+RET_FROM_NO_NEW_FRAMES:
     // LDAC pulse (inv.)
     bin_cnt_pulse
     ldac_inv_pulse
@@ -241,15 +234,52 @@ SRC_NEXT:
     rsr     a0, EXCSAVE_5
     rfi     5
 
+.macro spi_prepare_null hdr v
+    movi    RA, 0
+    extui   RA, RA, 0, 16
+    slli    \v, RA, 8
+    srli    RA, RA, 8
+    or      \v, \v, RA
+    extui   \v, \v, 0, 16
+    movi    RA, \hdr
+    or      \v, \v, RA
+    extui   \v, \v, 0, 16
+.endm
+
+NO_NEW_FRAMES:
+    bin_cnt_pulse
+    spi_prepare 1 176 R_NEXT_VAL R_PTR R_ARRAY    // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) Galvo - X
+    spi_load_and_start R_NEXT_VAL
+        spi_prepare_null 48 R_NEXT_VAL            // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
+
+    bin_cnt_pulse
+    spi_load_and_start R_NEXT_VAL
+        spi_prepare 2 48 R_NEXT_VAL R_PTR R_ARRAY // ((0 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8))) Galvo - Y
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
+
+    bin_cnt_pulse
+    spi_load_and_start R_NEXT_VAL
+        spi_prepare_null 176 R_NEXT_VAL           // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
+
+    bin_cnt_pulse
+    spi_load_and_start R_NEXT_VAL
+        spi_prepare_null 176 R_NEXT_VAL           // ((1 << (15 - 8)) | (1 << (13 - 8)) | (1 << (12 - 8)))
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
+
+    bin_cnt_pulse
+    spi_load_and_start R_NEXT_VAL
+    delay_cycles DELAY_CYCLES_SPI_TX_16B
+    J       RET_FROM_NO_NEW_FRAMES
+
  .global ld_include_xt_highint5
 ld_include_xt_highint5:
-
 
 //-------------------//
 //-----/ OTHER /-----//
 //-------------------//
-
-	//while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
+    //while(DAC_SPI.cmd.usr) // Wait for SPI bus ready
 //WAIT_SPI_RDY:
     //movi    RA, /*SPI_CMD_REG(1)*/DR_REG_SPI2_BASE400d04c4
     //memw

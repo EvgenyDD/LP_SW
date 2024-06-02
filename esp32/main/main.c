@@ -1,33 +1,39 @@
-// #include "../../common/proto.h"
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "hw.h"
 #include "lp.h"
+#include "proto_l0.h"
 #include "safety.h"
+#include "serial.h"
 #include "web/lan.h"
+#include "web/lc_udp.h"
 #include "web/web_common.h"
 #include "web/wifi.h"
 #include "web/ws.h"
 
 void app_main(void)
 {
-	ESP_LOGI("", "Running on core: %d\n", xPortGetCoreID());
+	serial_init();
 
-	hw_init();
+	esp_rom_gpio_pad_select_gpio(34); // sense key
+	gpio_set_direction(34, GPIO_MODE_INPUT);
+
+	esp_rom_gpio_pad_select_gpio(35); // emergency button
+	gpio_set_direction(35, GPIO_MODE_INPUT);
 
 	safety_init();
+	lp_init();
 
-#if 1
 	web_common_init();
 	lan_init();
 	wifi_init();
 	ws_init();
-#endif
+	lc_udp_init();
+	wifi_set_default_netif();
 
-	lp_init();
-
-	ESP_LOGI("HEAP", "Free heap: %d", xPortGetFreeHeapSize());
+	ESP_LOGI("_", "Running on core: %d", xPortGetCoreID());
+	ESP_LOGI("_", "Free heap: %d", xPortGetFreeHeapSize());
 
 	uint32_t prev_systick = esp_log_timestamp();
 
@@ -45,8 +51,17 @@ void app_main(void)
 			ws_console("ping %d\n", esp_log_timestamp());
 		}
 
+		static uint32_t tick_ms_sts_send = 0;
+		tick_ms_sts_send += diff_ms;
+		if(tick_ms_sts_send >= 100)
+		{
+			tick_ms_sts_send = 0;
+			proto_send_status();
+		}
+
 		safety_loop(diff_ms);
 
+		// lp_trace();
 		vTaskDelay(1);
 	}
 }
