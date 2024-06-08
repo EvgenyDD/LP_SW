@@ -3,6 +3,7 @@
 
 #include "proto.h"
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct
@@ -27,5 +28,7 @@ void proto_make_ver_str(uint8_t fw_type, char *s);
 uint32_t int_to_str(uint32_t value, uint8_t *pbuf, uint8_t len);
 
 void proto_send_status(void);
+void proto_send_param(uint8_t param, const void *data, size_t size);
+void proto_update_params(void);
 
 #endif // proto_L0_H__

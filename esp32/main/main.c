@@ -37,6 +37,8 @@ void app_main(void)
 
 	uint32_t prev_systick = esp_log_timestamp();
 
+	proto_req_params();
+
 	while(1)
 	{
 		const uint32_t systick_now = esp_log_timestamp();

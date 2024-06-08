@@ -26,6 +26,7 @@
 #define SYSTICK_IN_MS (168000000 / 1000)
 
 bool g_stay_in_boot = false;
+fram_data_t g_fram_data = {0};
 
 uint32_t g_uid[3];
 
@@ -87,6 +88,10 @@ __attribute__((noreturn)) void main(void)
 	imu_init();
 	opt3001_init();
 
+	fram_read(0, &g_fram_data, sizeof(g_fram_data));
+	g_fram_data.turn_on_cnt++;
+	fram_write(0, &g_fram_data, sizeof(g_fram_data));
+
 	usb_init();
 
 	fan_init();
@@ -100,6 +105,8 @@ __attribute__((noreturn)) void main(void)
 
 	if(config_validate() == CONFIG_STS_OK) config_read_storage();
 	serial_init();
+
+	proto_update_params();
 
 	for(;;)
 	{
@@ -127,6 +134,18 @@ __attribute__((noreturn)) void main(void)
 
 		proto_poll();
 
+		if(safety_is_pwr_enabled() && diff_ms != 0)
+		{
+			g_fram_data.work_time_ms += diff_ms;
+
+			static uint32_t tick_ms_upd_fram = 0;
+			tick_ms_upd_fram += diff_ms;
+			if(tick_ms_upd_fram >= 5000)
+			{
+				fram_write(0, &g_fram_data, sizeof(g_fram_data));
+			}
+		}
+
 		static uint32_t tick_ms_sts_send = 0;
 		tick_ms_sts_send += diff_ms;
 		if(tick_ms_sts_send >= 100)
@@ -145,4 +164,9 @@ __attribute__((noreturn)) void main(void)
 
 		serial_rx_check();
 	}
+}
+
+void proto_update_params(void)
+{
+	proto_send_param(PROTO_CMD_PARAM_LP_COLOR_MODE, &g_fram_data.lp_flags, sizeof(uint32_t));
 }

@@ -33,5 +33,6 @@ void proto_make_ver_str(uint8_t fw_type, char *s);
 uint32_t int_to_str(uint32_t value, uint8_t *pbuf, uint8_t len);
 
 void proto_send_status(void);
+void proto_req_params(void);
 
 #endif // PROTO_L0_H__

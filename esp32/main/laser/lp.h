@@ -23,8 +23,10 @@ uint32_t lp_get_free_buf(void);
 void lp_reset_q(void);
 
 void lp_append_point(uint16_t time_us, uint16_t x, uint16_t y, uint16_t r, uint16_t g, uint16_t b);
-void lp_append_pointa(const uint16_t *a);
+void lp_append_pointa(uint16_t *a);
 
 void lp_trace(void);
+
+void lp_set_params(uint32_t value);
 
 #endif // LP_H__

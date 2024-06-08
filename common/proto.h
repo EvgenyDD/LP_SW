@@ -19,7 +19,8 @@
 typedef enum
 {
 	PROTO_CMD_STS = 0,
-	PROTO_CMD_RESET_ERRORS = 0,
+	PROTO_CMD_RESET_ERRORS,
+	PROTO_CMD_PARAM_SET,
 } PROTO_CMD_t;
 
 /**
@@ -62,6 +63,11 @@ typedef enum
 
 typedef enum
 {
+	PROTO_CMD_PARAM_LP_COLOR_MODE = 0, // uint32_t,
+} PROTO_CMD_PARAM_t;
+
+typedef enum
+{
 	ERR_STM_SFTY = 0,
 	ERR_STM_CFG,
 	ERR_STM_FRAM,
@@ -98,5 +104,12 @@ typedef union
 		uint8_t long_release_upd : 2;
 	} cnt;
 } button_upd_cnt_t;
+
+enum
+{
+	CFG_FLAG_BIT_IMU = 0,
+	CFG_FLAG_BIT_GAMMA,
+	CFG_FLAG_BIT_FULL_POWER,
+};
 
 #endif // PROTO_H__

@@ -2,6 +2,7 @@
 #include "adc.h"
 #include "buttons.h"
 #include "error.h"
+#include "fram.h"
 #include "i2c_display.h"
 #include "imu.h"
 #include "lsr_ctrl.h"
@@ -36,18 +37,19 @@ typedef struct ui_item_t
 
 static ui_item_t null_menu = {0};
 
-#define UPD_INTERVAL 30 // ms
+#define UPD_INTERVAL 100 // ms
 
-M_M(m_info1, m_info2, m_settings, cb_info1, "-Info 1-");
+M_M(m_main, m_info1, m_settings, cb_main, "-AUTO -");
+M_M(m_info1, m_info2, m_main, cb_info1, "-Info 1-");
 M_M(m_info2, m_light, m_info1, cb_info2, "-Info 2-");
 M_M(m_light, m_play, m_info2, cb_light, "-Light-");
 M_M(m_play, m_journal, m_light, cb_play, "- Play -");
 M_M(m_journal, m_settings, m_play, cb_journal, "Journal");
-M_M(m_settings, m_info1, m_journal, cb_sett, "Settings");
+M_M(m_settings, m_main, m_journal, cb_sett, "Settings");
 
 #pragma GCC diagnostic pop
 
-static ui_item_t *cur = &m_info1;
+static ui_item_t *cur = &m_main;
 static uint16_t upd_timer = 0;
 static char buffer[128];
 
@@ -61,6 +63,110 @@ static void chng_menu(ui_item_t *item)
 static bool is_err(void)
 {
 	return (esp_sts.err & (uint32_t) ~(1 << ERR_ESP_SFTY)) || error_get();
+}
+
+void cb_main(bool redraw, ui_item_t *current)
+{
+	static uint8_t sel = 0;
+
+	if(btn_ju.state == BTN_PRESS_SHOT) sel = sel == 0 ? 2 : sel - 1;
+	if(btn_jd.state == BTN_PRESS_SHOT) sel = sel >= 3 ? 0 : sel + 1;
+
+	switch(sel)
+	{
+	default:
+	case 0:
+		if(btn_jl.state == BTN_PRESS_SHOT) g_fram_data.lp_flags &= (uint32_t) ~(1 << CFG_FLAG_BIT_IMU);
+		if(btn_jr.state == BTN_PRESS_SHOT) g_fram_data.lp_flags |= (1 << CFG_FLAG_BIT_IMU);
+		break;
+
+	case 1:
+		if(btn_jl.state == BTN_PRESS_SHOT) g_fram_data.lp_flags &= (uint32_t) ~(1 << CFG_FLAG_BIT_GAMMA);
+		if(btn_jr.state == BTN_PRESS_SHOT) g_fram_data.lp_flags |= (1 << CFG_FLAG_BIT_GAMMA);
+		if(btn_jl.state == BTN_PRESS_SHOT || btn_jr.state == BTN_PRESS_SHOT)
+		{
+			fram_write(0, &g_fram_data, sizeof(g_fram_data));
+			proto_send_param(PROTO_CMD_PARAM_LP_COLOR_MODE, &g_fram_data.lp_flags, sizeof(uint32_t));
+		}
+		break;
+
+	case 2:
+		if(btn_jl.state == BTN_PRESS_SHOT) g_fram_data.lp_flags &= (uint32_t) ~(1 << CFG_FLAG_BIT_FULL_POWER);
+		if(btn_jr.state == BTN_PRESS_SHOT) g_fram_data.lp_flags |= (1 << CFG_FLAG_BIT_FULL_POWER);
+		if(btn_jl.state == BTN_PRESS_SHOT || btn_jr.state == BTN_PRESS_SHOT)
+		{
+			fram_write(0, &g_fram_data, sizeof(g_fram_data));
+			proto_send_param(PROTO_CMD_PARAM_LP_COLOR_MODE, &g_fram_data.lp_flags, sizeof(uint32_t));
+		}
+		break;
+	}
+
+	if(redraw)
+	{
+		sprintf(buffer, "%s", current->text);
+		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
+
+		sprintf(buffer, "I %.1fV  ", adc_val.vin);
+		i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
+
+		sprintf(buffer, "  %.2fA  ", adc_val.i24);
+		i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
+
+		sprintf(buffer, "P %.1fW  ", adc_val.vp24 * adc_val.i24);
+		i2c_display_display_text(3, 0, buffer, strlen(buffer), false);
+
+		float max_temp = adc_val.t[0];
+		if(max_temp < adc_val.t[1]) max_temp = adc_val.t[1];
+		if(max_temp < adc_val.t_amp) max_temp = adc_val.t_amp;
+		sprintf(buffer, "t %.0f %.0f  ", max_temp, adc_val.t_head);
+		i2c_display_display_text(4, 0, buffer, strlen(buffer), false);
+
+		sprintf(buffer, "FAN %.0f%%  ", map(fan_get_vel(), FAN_VEL_MIN, FAN_VEL_MAX, 0, 100));
+		i2c_display_display_text(5, 0, buffer, strlen(buffer), false);
+
+		sprintf(buffer, "%c IMU: %d ", sel == 0 ? '>' : ' ', (g_fram_data.lp_flags & (1 << CFG_FLAG_BIT_IMU)) ? 1 : 0);
+		i2c_display_display_text(7, 0, buffer, strlen(buffer), sel == 0);
+		sprintf(buffer, "%c G:   %d ", sel == 1 ? '>' : ' ', (g_fram_data.lp_flags & (1 << CFG_FLAG_BIT_GAMMA)) ? 1 : 0);
+		i2c_display_display_text(8, 0, buffer, strlen(buffer), sel == 1);
+		sprintf(buffer, "%c PWR: %d ", sel == 2 ? '>' : ' ', (g_fram_data.lp_flags & (1 << CFG_FLAG_BIT_FULL_POWER)) ? 1 : 0);
+		i2c_display_display_text(9, 0, buffer, strlen(buffer), sel == 2);
+
+		uint32_t j = 0;
+		if(esp_sts.err)
+		{
+			sprintf(buffer, " x%lx          ", (uint32_t)esp_sts.err);
+			i2c_display_display_text(11 + j++, 0, buffer, strlen(buffer), false);
+		}
+		for(uint32_t i = 0; i < ERR_STM_COUNT; i++)
+		{
+			if(error_get() & (1 << i))
+			{
+				sprintf(buffer, "%s          ", error_get_str(i));
+				i2c_display_display_text(11 + j++, 0, buffer, strlen(buffer), false);
+			}
+		}
+		for(uint32_t i = 0; i < ERR_STM_COUNT; i++)
+		{
+			if((error_get_latched() & (1 << i)) &&
+			   !(error_get() & (1 << i)))
+			{
+				sprintf(buffer, "%s          ", error_get_str(i));
+				i2c_display_display_text(11 + j++, 0, buffer, strlen(buffer), true);
+			}
+		}
+
+		for(; j < 6; j++)
+		{
+			sprintf(buffer, "         ");
+			i2c_display_display_text(11 + j, 0, buffer, strlen(buffer), false);
+		}
+	}
+
+	if(btn_act[0].state & BTN_PRESS && btn_act[2].state & BTN_PRESS)
+		safety_reset_lock();
+
+	if(btn_act[1].state == BTN_PRESS_SHOT)
+		chng_menu(cur->next);
 }
 
 void cb_info1(bool redraw, ui_item_t *current)
@@ -139,8 +245,11 @@ void cb_info2(bool redraw, ui_item_t *current)
 		sprintf(buffer, "%s", current->text);
 		i2c_display_display_text(0, 0, buffer, strlen(buffer), is_err());
 
-		sprintf(buffer, opt3001_lux < 100 ? "%.2f Lx     " : "%.0fLx     ", opt3001_lux);
-		i2c_display_display_text(8, 0, buffer, strlen(buffer), false);
+		sprintf(buffer, "%ld    ", g_fram_data.turn_on_cnt);
+		i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
+
+		sprintf(buffer, "%ld    ", (uint32_t)g_fram_data.work_time_ms);
+		i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
 
 		const char axes[3] = "xyz";
 		for(uint32_t i = 0; i < 3; i++)

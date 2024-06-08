@@ -17,7 +17,7 @@
 
 static int sts = 0;
 
-int fram_read(uint32_t addr, uint8_t *buf, uint32_t sz)
+int fram_read(uint32_t addr, void *buf, uint32_t sz)
 {
 	uint8_t addr_lo = addr & 0xFF;
 	CHK(i2c_write(I2C_FM24LC16B_ADDR + (addr >> 8), &addr_lo, 1, true));
@@ -25,7 +25,7 @@ int fram_read(uint32_t addr, uint8_t *buf, uint32_t sz)
 	return 0;
 }
 
-int fram_write(uint32_t addr, const uint8_t *buf, uint32_t sz)
+int fram_write(uint32_t addr, const void *buf, uint32_t sz)
 {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wvla"

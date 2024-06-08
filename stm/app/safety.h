@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define FAN_VEL_MIN 33
+#define FAN_VEL_MAX 163
+
 bool safety_check_error(void);
 void safety_loop(uint32_t diff_ms);
 void safety_reset_ser_to(void);

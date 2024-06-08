@@ -2,6 +2,7 @@
 #include "adc.h"
 #include "buttons.h"
 #include "error.h"
+#include "fram.h"
 #include "imu.h"
 #include "lsr_ctrl.h"
 #include "platform.h"
@@ -28,13 +29,8 @@
 
 #define FAN_STARTUP_DLY 3500
 
-#if 0
 #define IMU_XL_THRS 0.05f
 #define IMU_G_THRS 10.0f
-#else
-#define IMU_XL_THRS 999.0f
-#define IMU_G_THRS 99999.0f
-#endif
 
 static bool safety_lock = true;
 static uint32_t reset_timer = 0;
@@ -56,6 +52,7 @@ static uint8_t is_pwr_enabled = false;
 
 static int check_imu_fix(void)
 {
+	if(!(g_fram_data.lp_flags & (1 << CFG_FLAG_BIT_IMU))) return 0;
 	for(uint32_t i = 0; i < 3; i++)
 	{
 		if(fabsf(imu_lock_fixture.xl[i] - imu_val.xl[i]) > IMU_XL_THRS) return 1;
@@ -159,7 +156,7 @@ void fan_track(uint32_t diff_ms)
 {
 	if(TIM3->CCR4 != fan_prev_capt)
 	{
-		fan_vel = (float)(84000000UL / (TIM2->PSC + 1) / TIM2->CCR1);
+		fan_vel = (float)(84000000UL / (TIM2->PSC + 1) / TIM2->CCR1); // 33Hz min / 163Hz max
 		fan_capt_to = 200;
 		fan_prev_capt = TIM3->CCR4;
 	}
@@ -260,7 +257,9 @@ void safety_enable_power_and_ctrl(void)
 	lsr_ctrl_init_enable();
 
 	GALV_PWR_EN;
+	delay_ms(50);
 	LSR_PWR_EN;
+	delay_ms(50);
 	is_pwr_enabled = true;
 }
 
@@ -269,7 +268,9 @@ void safety_enable_power(void)
 	if(error_get()) return;
 
 	GALV_PWR_EN;
+	delay_ms(50);
 	LSR_PWR_EN;
+	delay_ms(50);
 	is_pwr_enabled = true;
 }
 

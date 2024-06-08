@@ -216,6 +216,15 @@ static bool parse_status(const uint8_t *pl, uint32_t size)
 	}
 }
 
+void proto_req_params(void)
+{
+	uint32_t ptr = 2;
+	pkt_buf[ptr++] = PROTO_CMD_PARAM_SET;
+	memcpy(&pkt_buf[0], (uint16_t[]){ptr + 2}, 2);
+	proto_calc_fill_crc16(pkt_buf, ptr);
+	serial_tx(pkt_buf, ptr + 2);
+}
+
 void proto_l1_parse(uint8_t cmd, const uint8_t *payload, uint16_t len)
 {
 	switch(cmd)
@@ -224,6 +233,28 @@ void proto_l1_parse(uint8_t cmd, const uint8_t *payload, uint16_t len)
 		error_set(ERR_ESP_PROTO, parse_status(payload, len));
 		break;
 
-	default: send_b1(cmd, 1); break;
+	case PROTO_CMD_PARAM_SET:
+		if(len == 0) break;
+		switch(payload[0])
+		{
+		case PROTO_CMD_PARAM_LP_COLOR_MODE:
+		{
+			if(len != 5) break;
+			uint32_t param;
+			memcpy(&param, &payload[1], sizeof(uint32_t));
+			lp_set_params(param);
+		}
+		break;
+
+		default:
+			ESP_LOGE("PROTO", "Unknown param: %d", payload[0]);
+			break;
+		}
+		break;
+
+	default:
+		ESP_LOGE("PROTO", "Unknown cmd: %d", cmd);
+		send_b1(cmd, 1);
+		break;
 	}
 }

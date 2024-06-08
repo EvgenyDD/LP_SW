@@ -18,6 +18,10 @@
 #include <string.h>
 #include <sys/param.h>
 
+#define BC_UDP_PORT 45456
+#define CMD_UDP_PORT 45457
+#define FB_UDP_PORT 45458
+
 #define PROTO_LC_PING 0x27
 #define PROTO_LC_GET_STS 0x77
 #define PROTO_LC_ECHO_EN 0x78
@@ -33,7 +37,7 @@
 
 enum
 {
-	STS_PWR_EN = 1,
+	STS_PWR_EN = 0,
 	STS_UNLOCKED,
 	STS_TEMP_WARN,
 	STS_TEMP_OVER,
@@ -246,9 +250,9 @@ static void cb_sock_fb(int sock, const uint8_t *msg, size_t len, struct sockaddr
 }
 
 conn_t conn[] = {
-	{0, "LC_PING", cb_sock_ping},
-	{0, "LC_CMD", cb_sock_cmd},
-	{0, "LC_FB", cb_sock_fb},
+	{BC_UDP_PORT, "LC_PING", cb_sock_ping},
+	{CMD_UDP_PORT, "LC_CMD", cb_sock_cmd},
+	{FB_UDP_PORT, "LC_FB", cb_sock_fb},
 };
 
 static void udp_handler_task(void *params)
@@ -338,8 +342,7 @@ void lc_udp_init(void)
 
 	for(uint32_t i = 0; i < sizeof(conn) / sizeof(conn[0]); i++)
 	{
-		conn->port = 0xB190 + i;
-		xTaskCreate(udp_handler_task, "UDP port listener", 4096, (void *)&conn[i], 5, NULL);
+		xTaskCreate(udp_handler_task, conn[i].name, 4096, (void *)&conn[i], 5, NULL);
 	}
 }
 

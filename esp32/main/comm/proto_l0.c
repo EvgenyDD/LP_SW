@@ -35,7 +35,7 @@ static void try_parse(const uint8_t *buf, uint16_t sz_buf)
 	if(sz_buf >= 4)
 	{
 		uint16_t sz_pkt = ((uint16_t)buf[1] << 8L) | buf[0];
-		if(sz_pkt < 6L || sz_pkt > PROTO_MAX_PKT_SIZE)
+		if(sz_pkt < 5L || sz_pkt > PROTO_MAX_PKT_SIZE)
 		{
 			printf("wtf2\n");
 			return;

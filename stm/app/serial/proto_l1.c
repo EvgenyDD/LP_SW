@@ -83,6 +83,18 @@ static void send_b1(uint8_t cmd, uint8_t code)
 	serial_tx(pkt_buf, ptr + 2);
 }
 
+void proto_send_param(uint8_t param, const void *data, size_t size)
+{
+	uint32_t ptr = 2;
+	pkt_buf[ptr++] = PROTO_CMD_PARAM_SET;
+	pkt_buf[ptr++] = param;
+	memcpy(&pkt_buf[ptr], data, size);
+	ptr += size;
+	memcpy(&pkt_buf[0], (uint16_t[]){ptr + 2}, 2);
+	proto_calc_fill_crc16(pkt_buf, ptr);
+	serial_tx(pkt_buf, ptr + 2);
+}
+
 static void send_str(uint8_t cmd, const uint8_t *s)
 {
 	uint16_t slen;
@@ -214,6 +226,10 @@ void proto_l1_parse(uint8_t cmd, const uint8_t *payload, uint16_t len)
 	{
 	case PROTO_CMD_STS:
 		error_set(ERR_STM_PROTO, parse_status(payload, len));
+		break;
+
+	case PROTO_CMD_PARAM_SET:
+		proto_update_params();
 		break;
 
 	default: send_b1(cmd, 1); break;
