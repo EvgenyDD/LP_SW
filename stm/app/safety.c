@@ -178,7 +178,7 @@ void safety_loop(uint32_t diff_ms)
 	to_ser = to_ser >= diff_ms ? to_ser - diff_ms : 0;
 
 	error_set(ERR_STM_KEY, GPIOC->IDR & (1 << 7));
-	error_set(ERR_STM_FAN, fan_get_vel() == 0);
+	error_set(ERR_STM_FAN, fan_get_vel() <= 0);
 	error_set(ERR_STM_RB, GPIOA->IDR & (1 << 8));
 	error_set(ERR_STM_TO, to_ser == 0);
 

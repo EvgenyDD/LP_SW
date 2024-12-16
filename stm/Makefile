@@ -30,16 +30,20 @@ LDFLAGS  += -u _printf_float
 
 EXT_LIBS +=c m nosys
 
-PPDEFS += USE_STDPERIPH_DRIVER STM32F40_41xxx STM32F407xx HSE_VALUE=12000000 FW_TYPE=FW_APP CFG_SYSTEM_SAVES_NON_NATIVE_DATA=1 DEV=\"LP_STM_APP\"
+PPDEFS += USE_STDPERIPH_DRIVER STM32F40_41xxx STM32F407xx HSE_VALUE=12000000 FW_TYPE=FW_APP CFG_SYSTEM_SAVES_NON_NATIVE_DATA=1 DEV=\"LP_STM\"
+PPDEFS += USBD_CLASS_COMPOSITE_DFU_CDC
+PPDEFS += DFU_READS_CFG_SECTION
 
 INCDIR += app app/lsr_ctrl app/serial
 INCDIR += common
 INCDIR += common/adc
 INCDIR += common/CMSIS
 INCDIR += common/config_system
+INCDIR += common/console
 INCDIR += common/crc
 INCDIR += common/fw_header
 INCDIR += common/i2c
+INCDIR += common/md5
 INCDIR += common/STM32_USB_Device_Library/Core
 INCDIR += common/STM32_USB_OTG_Driver
 INCDIR += common/STM32F4xx_StdPeriph_Driver/inc
@@ -50,9 +54,11 @@ SOURCES += $(call rwildcard, app, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/adc, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/CMSIS, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/config_system, *.c *.S *.s)
+SOURCES += $(call rwildcard, common/console, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/crc, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/fw_header, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/i2c, *.c *.S *.s)
+SOURCES += $(call rwildcard, common/md5, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/STM32_USB_Device_Library/Core, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/STM32_USB_OTG_Driver, *.c *.S *.s)
 SOURCES += $(call rwildcard, common/STM32F4xx_StdPeriph_Driver, *.c *.S *.s)
@@ -108,17 +114,21 @@ clean_ext_targets:
 #####################
 
 flash: $(BINARY_SIGNED)
-	openocd -d0 -f target/stm32f4xx.cfg -c "program $(BINARY_SIGNED) 0x08020000 verify reset exit" 
+	@openocd -d0 -f target/stm32f4xx.cfg -c "program $(BINARY_SIGNED) 0x08020000 verify reset exit" 
 
-flash_full: $(BINARY_MERGED)
-	openocd -d0 -f target/stm32f4xx.cfg -c "program $(BINARY_MERGED) 0x08000000 verify reset exit"
+flash_all: $(BINARY_MERGED)
+	@openocd -d0 -f target/stm32f4xx.cfg -c "program $(BINARY_MERGED) 0x08000000 verify reset exit"
 
 program: $(BINARY_SIGNED)
-	@usb_dfu_flasher $< LP_STM
+	@usb_dfu_flasher w a $< LP_STM
+
+ds:
+	@openocd -d0 -f target/stm32f4xx.cfg
 
 debug:
+	@set _NO_DEBUG_HEAP=1
 	@echo "file $(EXECUTABLE)" > .gdbinit
 	@echo "set auto-load safe-path /" >> .gdbinit
 	@echo "set confirm off" >> .gdbinit
-	@echo "target remote | openocd -c \"gdb_port pipe\" -f target/stm32f4xx.cfg" >> .gdbinit
+	@echo "target extended-remote :3333" >> .gdbinit
 	@arm-none-eabi-gdb -q -x .gdbinit

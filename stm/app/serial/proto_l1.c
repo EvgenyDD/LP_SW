@@ -95,22 +95,22 @@ void proto_send_param(uint8_t param, const void *data, size_t size)
 	serial_tx(pkt_buf, ptr + 2);
 }
 
-static void send_str(uint8_t cmd, const uint8_t *s)
-{
-	uint16_t slen;
-	for(slen = 0; s[slen] != '\0' && slen < PROTO_MAX_PKT_SIZE - 6; slen++)
-		;
-	uint16_t ptr = 2;
-	pkt_buf[ptr++] = cmd;
-	memcpy(&pkt_buf[ptr], s, slen);
-	ptr += slen;
-	pkt_buf[ptr++] = '\0';
-	uint16_t len = ptr + 2L;
-	pkt_buf[2] = len & 0xFF;
-	pkt_buf[3] = (len >> 8L) & 0xFF;
-	proto_calc_fill_crc16(pkt_buf, ptr);
-	serial_tx(pkt_buf, len);
-}
+// static void send_str(uint8_t cmd, const uint8_t *s)
+// {
+// 	uint16_t slen;
+// 	for(slen = 0; s[slen] != '\0' && slen < PROTO_MAX_PKT_SIZE - 6; slen++)
+// 		;
+// 	uint16_t ptr = 2;
+// 	pkt_buf[ptr++] = cmd;
+// 	memcpy(&pkt_buf[ptr], s, slen);
+// 	ptr += slen;
+// 	pkt_buf[ptr++] = '\0';
+// 	uint16_t len = ptr + 2L;
+// 	pkt_buf[2] = len & 0xFF;
+// 	pkt_buf[3] = (len >> 8L) & 0xFF;
+// 	proto_calc_fill_crc16(pkt_buf, ptr);
+// 	serial_tx(pkt_buf, len);
+// }
 
 void proto_send_status(void)
 {

@@ -2,6 +2,7 @@
 #include "adc.h"
 #include "buttons.h"
 #include "config_system.h"
+#include "console.h"
 #include "crc.h"
 #include "error.h"
 #include "fram.h"
@@ -18,7 +19,8 @@
 #include "safety.h"
 #include "serial.h"
 #include "ui.h"
-#include "usbd_proto_core.h"
+#include "usb_hw.h"
+#include "usbd_core_cdc.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -30,7 +32,7 @@ fram_data_t g_fram_data = {0};
 
 uint32_t g_uid[3];
 
-volatile uint64_t system_time = 0;
+volatile uint32_t system_time_ms = 0;
 static int32_t prev_systick = 0;
 
 uint8_t tmp = 0;
@@ -51,12 +53,6 @@ void delay_ms(volatile uint32_t delay_ms)
 		if(start >= time_limit)
 			return;
 	}
-}
-
-static void end_loop(void)
-{
-	delay_ms(2000);
-	platform_reset();
 }
 
 __attribute__((noreturn)) void main(void)
@@ -113,16 +109,16 @@ __attribute__((noreturn)) void main(void)
 		// time diff
 		uint32_t time_diff_systick = (uint32_t)prof_mark(&prev_systick);
 
-		static uint32_t remain_systick_us_prev = 0, remain_systick_ms_prev = 0;
-		uint32_t diff_us = (time_diff_systick + remain_systick_us_prev) / (SYSTICK_IN_US);
-		remain_systick_us_prev = (time_diff_systick + remain_systick_us_prev) % SYSTICK_IN_US;
+		static uint32_t /*remain_systick_us_prev = 0,*/ remain_systick_ms_prev = 0;
+		/*uint32_t diff_us = (time_diff_systick + remain_systick_us_prev) / (SYSTICK_IN_US);
+		remain_systick_us_prev = (time_diff_systick + remain_systick_us_prev) % SYSTICK_IN_US;*/
 
 		uint32_t diff_ms = (time_diff_systick + remain_systick_ms_prev) / (SYSTICK_IN_MS);
 		remain_systick_ms_prev = (time_diff_systick + remain_systick_ms_prev) % SYSTICK_IN_MS;
 
 		platform_watchdog_reset();
 
-		system_time += diff_ms;
+		system_time_ms += diff_ms;
 
 		adc_track();
 		buttons_poll(diff_ms);
@@ -169,4 +165,10 @@ __attribute__((noreturn)) void main(void)
 void proto_update_params(void)
 {
 	proto_send_param(PROTO_CMD_PARAM_LP_COLOR_MODE, &g_fram_data.lp_flags, sizeof(uint32_t));
+}
+
+void usbd_cdc_rx(const uint8_t *data, uint32_t size)
+{
+	usbd_cdc_unlock();
+	console_cb((const char *)data, size);
 }

@@ -35,8 +35,6 @@ typedef struct ui_item_t
 	const char *text;
 } ui_item_t;
 
-static ui_item_t null_menu = {0};
-
 #define UPD_INTERVAL 100 // ms
 
 M_M(m_main, m_info1, m_settings, cb_main, "-AUTO -");
@@ -248,8 +246,11 @@ void cb_info2(bool redraw, ui_item_t *current)
 		sprintf(buffer, "%ld    ", g_fram_data.turn_on_cnt);
 		i2c_display_display_text(1, 0, buffer, strlen(buffer), false);
 
-		sprintf(buffer, "%ld    ", (uint32_t)g_fram_data.work_time_ms);
+		sprintf(buffer, "%ld    ", (uint32_t)(g_fram_data.work_time_ms / 1000));
 		i2c_display_display_text(2, 0, buffer, strlen(buffer), false);
+
+		sprintf(buffer, opt3001_lux < 100 ? "%.2f Lx     " : "%.0fLx     ", opt3001_lux);
+		i2c_display_display_text(8, 0, buffer, strlen(buffer), false);
 
 		const char axes[3] = "xyz";
 		for(uint32_t i = 0; i < 3; i++)

@@ -389,178 +389,178 @@ void i2c_display_clear_line(uint32_t row, bool invert)
 // delay = 0 : display with no wait
 // delay > 0 : display with wait
 // delay < 0 : no display
-static void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, uint32_t start, uint32_t end, int8_t delay)
-{
-	if(scroll == SCROLL_RIGHT)
-	{
-		uint32_t _start = start; // 0 to 15
-		uint32_t _end = end;	 // 0 to 15
-		if(_end >= _pages) _end = _pages - 1;
-		uint8_t wk;
-		// for (int page=0;page<_pages;page++) {
-		for(uint32_t page = _start; page <= _end; page++)
-		{
-			wk = disp_buf[page][63];
-			for(int seg = 63; seg > 0; seg--)
-			{
-				disp_buf[page][seg] = disp_buf[page][seg - 1];
-			}
-			disp_buf[page][0] = wk;
-		}
-	}
-	else if(scroll == SCROLL_LEFT)
-	{
-		uint32_t _start = start; // 0 to 15
-		uint32_t _end = end;	 // 0 to 15
-		if(_end >= _pages) _end = _pages - 1;
-		uint8_t wk;
-		// for (int page=0;page<_pages;page++) {
-		for(uint32_t page = _start; page <= _end; page++)
-		{
-			wk = disp_buf[page][0];
-			for(int seg = 0; seg < 63; seg++)
-			{
-				disp_buf[page][seg] = disp_buf[page][seg + 1];
-			}
-			disp_buf[page][63] = wk;
-		}
-	}
-	else if(scroll == SCROLL_UP)
-	{
-		uint32_t _start = start; // 0 to {width-1}
-		uint32_t _end = end;	 // 0 to {width-1}
-		if(_end >= WIDTH) _end = WIDTH - 1;
-		uint8_t wk0;
-		uint8_t wk1;
-		uint8_t wk2;
-		uint8_t save[64];
-		// Save pages 0
-		for(uint32_t seg = 0; seg < 64; seg++)
-		{
-			save[seg] = disp_buf[0][seg];
-		}
-		// Page0 to Page15
-		for(uint32_t page = 0; page < _pages - 1; page++)
-		{
-			// for (int seg=0;seg<64;seg++) {
-			for(uint32_t seg = _start; seg <= _end; seg++)
-			{
-				wk0 = disp_buf[page][seg];
-				wk1 = disp_buf[page + 1][seg];
+// static void i2c_display_wrap_arround(sh1107_scroll_type_t scroll, uint32_t start, uint32_t end, int8_t delay)
+// {
+// 	if(scroll == SCROLL_RIGHT)
+// 	{
+// 		uint32_t _start = start; // 0 to 15
+// 		uint32_t _end = end;	 // 0 to 15
+// 		if(_end >= _pages) _end = _pages - 1;
+// 		uint8_t wk;
+// 		// for (int page=0;page<_pages;page++) {
+// 		for(uint32_t page = _start; page <= _end; page++)
+// 		{
+// 			wk = disp_buf[page][63];
+// 			for(int seg = 63; seg > 0; seg--)
+// 			{
+// 				disp_buf[page][seg] = disp_buf[page][seg - 1];
+// 			}
+// 			disp_buf[page][0] = wk;
+// 		}
+// 	}
+// 	else if(scroll == SCROLL_LEFT)
+// 	{
+// 		uint32_t _start = start; // 0 to 15
+// 		uint32_t _end = end;	 // 0 to 15
+// 		if(_end >= _pages) _end = _pages - 1;
+// 		uint8_t wk;
+// 		// for (int page=0;page<_pages;page++) {
+// 		for(uint32_t page = _start; page <= _end; page++)
+// 		{
+// 			wk = disp_buf[page][0];
+// 			for(int seg = 0; seg < 63; seg++)
+// 			{
+// 				disp_buf[page][seg] = disp_buf[page][seg + 1];
+// 			}
+// 			disp_buf[page][63] = wk;
+// 		}
+// 	}
+// 	else if(scroll == SCROLL_UP)
+// 	{
+// 		uint32_t _start = start; // 0 to {width-1}
+// 		uint32_t _end = end;	 // 0 to {width-1}
+// 		if(_end >= WIDTH) _end = WIDTH - 1;
+// 		uint8_t wk0;
+// 		uint8_t wk1;
+// 		uint8_t wk2;
+// 		uint8_t save[64];
+// 		// Save pages 0
+// 		for(uint32_t seg = 0; seg < 64; seg++)
+// 		{
+// 			save[seg] = disp_buf[0][seg];
+// 		}
+// 		// Page0 to Page15
+// 		for(uint32_t page = 0; page < _pages - 1; page++)
+// 		{
+// 			// for (int seg=0;seg<64;seg++) {
+// 			for(uint32_t seg = _start; seg <= _end; seg++)
+// 			{
+// 				wk0 = disp_buf[page][seg];
+// 				wk1 = disp_buf[page + 1][seg];
 
-				wk0 = wk0 >> 1;
-				wk1 = wk1 & 0x01;
-				wk1 = wk1 << 7;
-				wk2 = wk0 | wk1;
+// 				wk0 = wk0 >> 1;
+// 				wk1 = wk1 & 0x01;
+// 				wk1 = wk1 << 7;
+// 				wk2 = wk0 | wk1;
 
-				disp_buf[page][seg] = wk2;
-			}
-		}
-		// Page15
-		uint32_t pages = _pages - 1;
-		// for (int seg=0;seg<64;seg++) {
-		for(uint32_t seg = _start; seg <= _end; seg++)
-		{
-			wk0 = disp_buf[pages][seg];
-			wk1 = save[seg];
-			wk0 = wk0 >> 1;
-			wk1 = wk1 & 0x01;
-			wk1 = wk1 << 7;
-			wk2 = wk0 | wk1;
-			disp_buf[pages][seg] = wk2;
-		}
-	}
-	else if(scroll == SCROLL_DOWN)
-	{
-		uint32_t _start = start; // 0 to {width-1}
-		uint32_t _end = end;	 // 0 to {width-1}
-		if(_end >= WIDTH) _end = WIDTH - 1;
-		uint8_t wk0;
-		uint8_t wk1;
-		uint8_t wk2;
-		uint8_t save[64];
-		// Save pages 15
-		uint32_t pages = _pages - 1;
-		for(uint32_t seg = 0; seg < 64; seg++)
-		{
-			save[seg] = disp_buf[pages][seg];
-		}
-		// Page15 to Page1
-		for(uint32_t page = pages; page > 0; page--)
-		{
-			// for (int seg=0;seg<64;seg++) {
-			for(uint32_t seg = _start; seg <= _end; seg++)
-			{
-				wk0 = disp_buf[page][seg];
-				wk1 = disp_buf[page - 1][seg];
+// 				disp_buf[page][seg] = wk2;
+// 			}
+// 		}
+// 		// Page15
+// 		uint32_t pages = _pages - 1;
+// 		// for (int seg=0;seg<64;seg++) {
+// 		for(uint32_t seg = _start; seg <= _end; seg++)
+// 		{
+// 			wk0 = disp_buf[pages][seg];
+// 			wk1 = save[seg];
+// 			wk0 = wk0 >> 1;
+// 			wk1 = wk1 & 0x01;
+// 			wk1 = wk1 << 7;
+// 			wk2 = wk0 | wk1;
+// 			disp_buf[pages][seg] = wk2;
+// 		}
+// 	}
+// 	else if(scroll == SCROLL_DOWN)
+// 	{
+// 		uint32_t _start = start; // 0 to {width-1}
+// 		uint32_t _end = end;	 // 0 to {width-1}
+// 		if(_end >= WIDTH) _end = WIDTH - 1;
+// 		uint8_t wk0;
+// 		uint8_t wk1;
+// 		uint8_t wk2;
+// 		uint8_t save[64];
+// 		// Save pages 15
+// 		uint32_t pages = _pages - 1;
+// 		for(uint32_t seg = 0; seg < 64; seg++)
+// 		{
+// 			save[seg] = disp_buf[pages][seg];
+// 		}
+// 		// Page15 to Page1
+// 		for(uint32_t page = pages; page > 0; page--)
+// 		{
+// 			// for (int seg=0;seg<64;seg++) {
+// 			for(uint32_t seg = _start; seg <= _end; seg++)
+// 			{
+// 				wk0 = disp_buf[page][seg];
+// 				wk1 = disp_buf[page - 1][seg];
 
-				wk0 = wk0 << 1;
-				wk1 = wk1 & 0x80;
-				wk1 = wk1 >> 7;
-				wk2 = wk0 | wk1;
+// 				wk0 = wk0 << 1;
+// 				wk1 = wk1 & 0x80;
+// 				wk1 = wk1 >> 7;
+// 				wk2 = wk0 | wk1;
 
-				disp_buf[page][seg] = wk2;
-			}
-		}
-		// Page0
-		for(uint32_t seg = _start; seg <= _end; seg++)
-		{
-			wk0 = disp_buf[0][seg];
-			wk1 = save[seg];
-			wk0 = wk0 << 1;
-			wk1 = wk1 & 0x80;
-			wk1 = wk1 >> 7;
-			wk2 = wk0 | wk1;
-			disp_buf[0][seg] = wk2;
-		}
-	}
+// 				disp_buf[page][seg] = wk2;
+// 			}
+// 		}
+// 		// Page0
+// 		for(uint32_t seg = _start; seg <= _end; seg++)
+// 		{
+// 			wk0 = disp_buf[0][seg];
+// 			wk1 = save[seg];
+// 			wk0 = wk0 << 1;
+// 			wk1 = wk1 & 0x80;
+// 			wk1 = wk1 >> 7;
+// 			wk2 = wk0 | wk1;
+// 			disp_buf[0][seg] = wk2;
+// 		}
+// 	}
 
-	if(delay >= 0)
-	{
-		for(uint32_t page = 0; page < _pages; page++)
-		{
-			i2c_display_image(page, 0, disp_buf[page], 64);
-			// if(delay) vTaskDelay(delay);
-		}
-	}
-}
+// 	if(delay >= 0)
+// 	{
+// 		for(uint32_t page = 0; page < _pages; page++)
+// 		{
+// 			i2c_display_image(page, 0, disp_buf[page], 64);
+// 			// if(delay) vTaskDelay(delay);
+// 		}
+// 	}
+// }
 
-static void i2c_display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height, bool invert)
-{
-	if((width % 8) != 0)
-	{
-		// ESP_LOGE("", "width must be a multiple of 8");
-		return;
-	}
-	if((xpos % 8) != 0)
-	{
-		// ESP_LOGE("", "xpos must be a multiple of 8");
-		return;
-	}
-	int w = width / 8;
-	// uint8_t wk0;
-	uint8_t wk1;
-	int _seg = 63 - ypos;
-	int offset = 0;
-	for(int h = 0; h < height; h++)
-	{
-		int page = (xpos / 8);
-		for(int index = 0; index < w; index++)
-		{
-			// wk0 = disp_buf[page][_seg];
-			wk1 = bitmap[index + offset];
-			wk1 = i2c_display_rotate_byte(wk1);
-			if(invert) wk1 = ~wk1;
-			disp_buf[page][_seg] = wk1;
-			page++;
-		}
-		// vTaskDelay(1);
-		offset = offset + w;
-		_seg--;
-	}
+// static void i2c_display_bitmaps(int xpos, int ypos, uint8_t *bitmap, int width, int height, bool invert)
+// {
+// 	if((width % 8) != 0)
+// 	{
+// 		// ESP_LOGE("", "width must be a multiple of 8");
+// 		return;
+// 	}
+// 	if((xpos % 8) != 0)
+// 	{
+// 		// ESP_LOGE("", "xpos must be a multiple of 8");
+// 		return;
+// 	}
+// 	int w = width / 8;
+// 	// uint8_t wk0;
+// 	uint8_t wk1;
+// 	int _seg = 63 - ypos;
+// 	int offset = 0;
+// 	for(int h = 0; h < height; h++)
+// 	{
+// 		int page = (xpos / 8);
+// 		for(int index = 0; index < w; index++)
+// 		{
+// 			// wk0 = disp_buf[page][_seg];
+// 			wk1 = bitmap[index + offset];
+// 			wk1 = i2c_display_rotate_byte(wk1);
+// 			if(invert) wk1 = ~wk1;
+// 			disp_buf[page][_seg] = wk1;
+// 			page++;
+// 		}
+// 		// vTaskDelay(1);
+// 		offset = offset + w;
+// 		_seg--;
+// 	}
 
-	i2c_display_show_buffer();
-}
+// 	i2c_display_show_buffer();
+// }
 
 void i2c_display_invert(uint8_t *buf, size_t blen)
 {
@@ -572,27 +572,27 @@ void i2c_display_invert(uint8_t *buf, size_t blen)
 	}
 }
 
-static uint8_t display_copy_bit(uint8_t src, int srcBits, uint8_t dst, int dstBits)
-{
-	uint8_t smask = 0x01 << srcBits;
-	uint8_t dmask = 0x01 << dstBits;
-	uint8_t _src = src & smask;
-#if 0
-	if (_src != 0) _src = 1;
-	uint8_t _wk = _src << dstBits;
-	uint8_t _dst = dst | _wk;
-#endif
-	uint8_t _dst;
-	if(_src != 0)
-	{
-		_dst = dst | dmask; // set bit
-	}
-	else
-	{
-		_dst = dst & ~(dmask); // clear bit
-	}
-	return _dst;
-}
+// static uint8_t display_copy_bit(uint8_t src, int srcBits, uint8_t dst, int dstBits)
+// {
+// 	uint8_t smask = 0x01 << srcBits;
+// 	uint8_t dmask = 0x01 << dstBits;
+// 	uint8_t _src = src & smask;
+// #if 0
+// 	if (_src != 0) _src = 1;
+// 	uint8_t _wk = _src << dstBits;
+// 	uint8_t _dst = dst | _wk;
+// #endif
+// 	uint8_t _dst;
+// 	if(_src != 0)
+// 	{
+// 		_dst = dst | dmask; // set bit
+// 	}
+// 	else
+// 	{
+// 		_dst = dst & ~(dmask); // clear bit
+// 	}
+// 	return _dst;
+// }
 
 // Rotate 8-bit data
 // 0x12-->0x48

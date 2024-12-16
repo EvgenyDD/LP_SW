@@ -1,5 +1,5 @@
 #######################################
-#           VERSION 2
+#           VERSION 2.1
 # #####       Manual:             #####
 #
 # 	EXE_NAME=my_prj
@@ -343,7 +343,7 @@ clean_foreign_targets:
 #######################################
 # FLAGS
 #######################################
-COMMON_WARN += -Wabi
+# COMMON_WARN += -Wabi
 COMMON_WARN += -Warray-bounds
 COMMON_WARN += -Wattributes
 COMMON_WARN += -Wcast-align
@@ -352,12 +352,13 @@ COMMON_WARN += -Wclobbered
 # COMMON_WARN += -Wconversion
 COMMON_WARN += -Wcoverage-mismatch
 COMMON_WARN += -Wdisabled-optimization
-# COMMON_WARN += -Wfloat-equal
+COMMON_WARN += -Wfloat-equal
 COMMON_WARN += -Wformat
 COMMON_WARN += -Wformat-nonliteral
 COMMON_WARN += -Wformat-security
 COMMON_WARN += -Wformat-y2k
 COMMON_WARN += -Wformat=2
+COMMON_WARN += -Wimplicit-fallthrough
 COMMON_WARN += -Winit-self
 COMMON_WARN += -Winline
 COMMON_WARN += -Winvalid-pch
@@ -365,7 +366,7 @@ COMMON_WARN += -Wlogical-op
 COMMON_WARN += -Wmissing-declarations
 COMMON_WARN += -Wmissing-format-attribute
 COMMON_WARN += -Wmissing-include-dirs
-COMMON_WARN += -Wmissing-noreturn
+# COMMON_WARN += -Wmissing-noreturn
 COMMON_WARN += -Wno-attributes
 COMMON_WARN += -Wno-builtin-macro-redefined
 COMMON_WARN += -Wno-deprecated
@@ -389,10 +390,11 @@ COMMON_WARN += -Wpacked
 COMMON_WARN += -Wpacked-bitfield-compat
 # COMMON_WARN += -Wpadded
 COMMON_WARN += -Wpointer-arith
+COMMON_WARN += -Wpointer-sign
 COMMON_WARN += -Wredundant-decls
 COMMON_WARN += -Wshadow
 COMMON_WARN += -Wsign-compare
-COMMON_WARN += -Wsign-conversion
+# COMMON_WARN += -Wsign-conversion
 COMMON_WARN += -Wstack-protector
 COMMON_WARN += -Wstrict-aliasing=1
 COMMON_WARN += -Wstrict-overflow=2
@@ -404,6 +406,7 @@ COMMON_WARN += -Wsystem-headers
 COMMON_WARN += -Wunknown-pragmas
 COMMON_WARN += -Wunreachable-code
 COMMON_WARN += -Wunsafe-loop-optimizations
+COMMON_WARN += -Wunused-function
 COMMON_WARN += -Wvariadic-macros
 COMMON_WARN += -Wvla
 COMMON_WARN += -Wvolatile-register-var

@@ -30,7 +30,9 @@ LDFLAGS  += -Wl,--print-memory-usage
 
 EXT_LIBS +=c nosys
 
-PPDEFS += USE_STDPERIPH_DRIVER STM32F40_41xxx STM32F407xx HSE_VALUE=12000000 FW_HEADER_REDUCED FW_TYPE=FW_LDR CFG_SYSTEM_SAVES_NON_NATIVE_DATA=1 DEV=\"LP_STM_LDR\"
+PPDEFS += USE_STDPERIPH_DRIVER STM32F40_41xxx STM32F407xx HSE_VALUE=12000000 FW_HEADER_REDUCED FW_TYPE=FW_LDR CFG_SYSTEM_SAVES_NON_NATIVE_DATA=1 DEV=\"LP_STM\"
+PPDEFS += USBD_CLASS_DFU
+PPDEFS += DFU_READS_CFG_SECTION
 
 INCDIR += .
 INCDIR += ../common
@@ -44,6 +46,7 @@ INCDIR += ../common/STM32_USB_Device_Library/Core
 INCDIR += ../common/STM32_USB_OTG_Driver
 INCDIR += ../common/STM32F4xx_StdPeriph_Driver/inc
 INCDIR += ../common/usb
+INCDIR += ../../common
 
 SOURCES += $(call rwildcard, ../common/adc, *.c *.S *.s)
 SOURCES += $(call rwildcard, ../common/CMSIS, *.c *.S *.s)
@@ -105,17 +108,21 @@ $(EXT_MAKE_TARGETS):
 #####################
 
 flash: $(BINARY_SIGNED)
-	openocd -d0 -f ../target/stm32f4xx.cfg -c "program $< 0x08004000 verify reset exit" 
+	@openocd -d0 -f ../target/stm32f4xx.cfg -c "program $< 0x08004000 verify reset exit" 
 
 flash_all: $(BINARY_MERGED)
-	openocd -d0 -f ../target/stm32f4xx.cfg -c "program $< 0x08000000 verify reset exit" 
+	@openocd -d0 -f ../target/stm32f4xx.cfg -c "program $< 0x08000000 verify reset exit" 
 
 program: $(BINARY_SIGNED)
-	@usb_dfu_flasher $< LP_STM boot
+	@usb_dfu_flasher w b $< LP_STM
+
+ds:
+	@openocd -d0 -f ../target/stm32f4xx.cfg
 
 debug:
+	@set _NO_DEBUG_HEAP=1
 	@echo "file $(EXECUTABLE)" > .gdbinit
 	@echo "set auto-load safe-path /" >> .gdbinit
 	@echo "set confirm off" >> .gdbinit
-	@echo "target remote | openocd -c \"gdb_port pipe\" -f ../target/stm32f4xx.cfg" >> .gdbinit
+	@echo "target extended-remote :3333" >> .gdbinit
 	@arm-none-eabi-gdb -q -x .gdbinit
