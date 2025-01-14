@@ -1,13 +1,15 @@
-COM_PORT=COM5
+include comport_sel.mk
 
-all:
+.PHONY: build
+
+build:  web/page/dist/index.html
 	@idf.py build
 
-full: web/page/dist/index.html
-	@idf.py build
-
-f: full
+ff: build
 	idf.py -p $(COM_PORT) flash
+
+f: build
+	idf.py -p $(COM_PORT) flash app
 
 fm: f
 	idf.py -p $(COM_PORT) monitor
@@ -15,11 +17,11 @@ fm: f
 m:
 	idf.py -p $(COM_PORT) monitor
 
-config:
-	@idf.py menuconfig
-
 clean:
 	idf.py fullclean
 
 web/page/dist/index.html:
 	@make -C main/web/page --no-print-directory
+
+ota: build
+	curl --request POST --data-binary "@build/lp.bin" http://192.168.4.1/update

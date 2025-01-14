@@ -1,5 +1,6 @@
 #include "console.h"
 #include "fw_header.h"
+#include "platform.h"
 
 static void info_cb(const char *req, int len, int *ret)
 {
@@ -14,6 +15,7 @@ static void info_cb(const char *req, int len, int *ret)
 		const char *s = fw_fields_find_by_key_helper(&g_fw_info[i], "build_ts");
 		if(s) _console_print("\tBuild: %s\n", s);
 	}
+	_console_print("UID: x%08lx.x%08lx.x%08lx\n", g_uid[0], g_uid[1], g_uid[2]);
 }
 
 const console_cmd_t console_cmd[] = {

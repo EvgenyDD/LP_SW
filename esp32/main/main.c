@@ -11,6 +11,9 @@
 #include "web/web_common.h"
 #include "web/wifi.h"
 #include "web/ws.h"
+#include <esp_ota_ops.h>
+
+uint32_t restart_timer = 0;
 
 void app_main(void)
 {
@@ -38,7 +41,7 @@ void app_main(void)
 	uint32_t prev_systick = esp_log_timestamp();
 
 	proto_req_params();
-
+	esp_ota_mark_app_valid_cancel_rollback();
 	while(1)
 	{
 		const uint32_t systick_now = esp_log_timestamp();
@@ -59,6 +62,16 @@ void app_main(void)
 		{
 			tick_ms_sts_send = 0;
 			proto_send_status();
+		}
+
+		if(restart_timer)
+		{
+			if(restart_timer <= diff_ms)
+			{
+				safety_disable_power_head();
+				esp_restart();
+			}
+			restart_timer -= diff_ms;
 		}
 
 		safety_loop(diff_ms);
